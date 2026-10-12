@@ -1,69 +1,120 @@
-import Image from "next/image";
+import { ArrowRightIcon } from 'lucide-react'
+import Link from 'next/link'
+import { CategoryGrid, QueryCard } from '@/components'
+import { getCategoriesWithCount, getQueryDetail, getQuerySummaries } from '@/lib/content'
+import { HeroCodeCard } from './components/HeroCodeCard'
+import { HeroSearch } from './components/HeroSearch'
+import { HowItWorks } from './components/HowItWorks'
+import { SchemaBanner } from './components/SchemaBanner'
 
-export default function Home() {
+const HERO_SLUG = 'upsert'
+const POPULAR_SEARCHES = ['upsert', 'left join', 'running total', 'duplikat', 'pagination']
+
+const HomePage = async () => {
+  const [categories, summaries] = await Promise.all([getCategoriesWithCount(), getQuerySummaries()])
+  const popular = [...summaries].sort((a, b) => b.popularity - a.popularity).slice(0, 3)
+  const hero =
+    (await getQueryDetail(HERO_SLUG)) ?? (popular[0] ? await getQueryDetail(popular[0].slug) : null)
+  const filledCategories = categories.filter((category) => category.count > 0).length
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <>
+      <section aria-labelledby="hero-title" className="border-b bg-card">
+        <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-12 px-4 pt-14 pb-14 sm:px-6 lg:pt-[72px] lg:pb-16">
+          <div className="flex min-w-0 flex-[1_1_460px] flex-col gap-6">
+            <p className="self-start rounded-full bg-primary-soft px-3 py-1.5 font-mono text-[13px] font-medium text-primary-soft-foreground">
+              {summaries.length} contoh query · {filledCategories} kategori
+            </p>
+            <h1
+              id="hero-title"
+              className="text-[38px] leading-[1.08] font-semibold tracking-[-0.035em] sm:text-5xl lg:text-[52px]"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              Contoh query SQL siap salin, lengkap dengan penjelasannya.
+            </h1>
+            <p className="max-w-xl text-[17px] leading-relaxed text-muted-foreground sm:text-lg">
+              Cari pola yang kamu butuhkan, pilih dialek database, lalu salin dalam satu klik.
+              Setiap contoh dijelaskan per klausa dan disertai contoh hasilnya.
+            </p>
+            <HeroSearch />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-subtle-foreground">Populer:</span>
+              {POPULAR_SEARCHES.map((term) => (
+                <Link
+                  key={term}
+                  href={`/queries?q=${encodeURIComponent(term)}`}
+                  className="inline-flex min-h-9 items-center rounded-full border bg-card px-3 font-mono text-[13px] font-medium text-muted-foreground transition-colors hover:border-input hover:text-foreground"
+                >
+                  {term}
+                </Link>
+              ))}
+            </div>
+          </div>
+          {hero && <HeroCodeCard query={hero} className="min-w-0 flex-[1_1_460px]" />}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section aria-labelledby="kategori-title" className="px-4 pt-16 pb-6 sm:px-6">
+        <div className="mx-auto flex max-w-[1240px] flex-col gap-6">
+          <SectionHeading
+            id="kategori-title"
+            title="Jelajahi per kategori"
+            description="Dari SELECT dasar sampai resep analitik."
+            href="/categories"
+            linkLabel="Semua kategori"
+          />
+          <CategoryGrid categories={categories} />
         </div>
-      </main>
+      </section>
+
+      <section aria-labelledby="populer-title" className="px-4 pt-12 pb-6 sm:px-6">
+        <div className="mx-auto flex max-w-[1240px] flex-col gap-6">
+          <SectionHeading
+            id="populer-title"
+            title="Query populer"
+            description="Kode mengikuti dialek pilihanmu. Ganti dialek lewat tab di contoh atas."
+            href="/queries"
+            linkLabel="Jelajah semua"
+          />
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+            {popular.map((item) => (
+              <QueryCard key={item.slug} item={item} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <HowItWorks />
+      <SchemaBanner />
+    </>
+  )
+}
+
+export default HomePage
+
+type SectionHeadingProps = {
+  id: string
+  title: string
+  description: string
+  href: string
+  linkLabel: string
+}
+
+const SectionHeading = ({ id, title, description, href, linkLabel }: SectionHeadingProps) => {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-col gap-1.5">
+        <h2 id={id} className="text-[26px] font-semibold tracking-[-0.025em] sm:text-[28px]">
+          {title}
+        </h2>
+        <p className="text-[15px] text-muted-foreground">{description}</p>
+      </div>
+      <Link
+        href={href}
+        className="inline-flex min-h-11 items-center gap-1.5 text-[15px] font-medium text-link hover:underline"
+      >
+        {linkLabel}
+        <ArrowRightIcon className="size-4" aria-hidden />
+      </Link>
     </div>
-  );
+  )
 }
