@@ -10,6 +10,8 @@
 !.yarn/releases
 !.yarn/versions
 
+/docs
+/CLAUDE.md
 # testing
 /coverage
 
@@ -32,6 +34,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
