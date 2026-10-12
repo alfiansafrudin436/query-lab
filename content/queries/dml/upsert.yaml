@@ -1,0 +1,102 @@
+title: 'UPSERT: insert atau update jika sudah ada'
+summary: Tambahkan produk baru, atau perbarui harga dan stok jika id-nya sudah ada.
+whenToUse: Saat menyimpan data yang mungkin sudah ada, misalnya sinkronisasi katalog produk dari supplier. Baris baru ditambahkan, baris yang id-nya sudah ada diperbarui, dalam satu query.
+difficulty: intermediate
+tags: [upsert, on conflict, on duplicate key, insert, merge]
+popularity: 11
+createdAt: '2026-09-28'
+updatedAt: '2026-10-12'
+minVersions:
+  postgresql: '9.5'
+  mysql: '8.0.19'
+  sqlite: '3.24'
+related: [delete-duplicates]
+variants:
+  - dialects: [postgresql]
+    note: Kolom di ON CONFLICT (…) wajib punya PRIMARY KEY atau UNIQUE constraint.
+    code: |
+      INSERT INTO products (id, category_id, name, price, stock)
+      VALUES (101, 2, 'Kopi Arabika 250g', 85000, 40)
+      ON CONFLICT (id) DO UPDATE
+      SET price = EXCLUDED.price,
+          stock = EXCLUDED.stock;
+    explanation:
+      - lines: [1, 1]
+        clause: INSERT INTO products (…)
+        text: Tentukan tabel dan kolom yang akan diisi, sama seperti INSERT biasa.
+      - lines: [2, 2]
+        clause: VALUES (…)
+        text: Data yang ingin disimpan. Jika produk id 101 belum ada, baris ini langsung ditambahkan.
+      - lines: [3, 3]
+        clause: ON CONFLICT (id) DO UPDATE
+        text: Jika id 101 sudah ada (bentrok dengan PRIMARY KEY), PostgreSQL tidak mengembalikan error, melainkan menjalankan UPDATE.
+      - lines: [4, 5]
+        clause: SET price = EXCLUDED.price
+        text: EXCLUDED berisi baris yang tadinya akan di-insert. Hanya price dan stock yang diperbarui; kolom lain tetap seperti semula.
+  - dialects: [mysql]
+    note: Di MySQL sebelum 8.0.19, ganti new.price dengan VALUES(price).
+    code: |
+      INSERT INTO products (id, category_id, name, price, stock)
+      VALUES (101, 2, 'Kopi Arabika 250g', 85000, 40) AS new
+      ON DUPLICATE KEY UPDATE
+        price = new.price,
+        stock = new.stock;
+    explanation:
+      - lines: [1, 1]
+        clause: INSERT INTO products (…)
+        text: Tentukan tabel dan kolom yang akan diisi, sama seperti INSERT biasa.
+      - lines: [2, 2]
+        clause: VALUES (…) AS new
+        text: Data baru, diberi alias new agar bisa dirujuk di bagian UPDATE.
+      - lines: [3, 3]
+        clause: ON DUPLICATE KEY UPDATE
+        text: Dipicu jika nilai bentrok dengan PRIMARY KEY atau UNIQUE index mana pun di tabel.
+      - lines: [4, 5]
+        clause: price = new.price
+        text: Perbarui price dan stock memakai nilai dari baris baru; kolom lain tidak berubah.
+  - dialects: [sqlite]
+    note: Sintaks UPSERT SQLite mengikuti PostgreSQL.
+    code: |
+      INSERT INTO products (id, category_id, name, price, stock)
+      VALUES (101, 2, 'Kopi Arabika 250g', 85000, 40)
+      ON CONFLICT (id) DO UPDATE
+      SET price = excluded.price,
+          stock = excluded.stock;
+    explanation:
+      - lines: [1, 1]
+        clause: INSERT INTO products (…)
+        text: Tentukan tabel dan kolom yang akan diisi, sama seperti INSERT biasa.
+      - lines: [2, 2]
+        clause: VALUES (…)
+        text: Data yang ingin disimpan. Jika produk id 101 belum ada, baris ini langsung ditambahkan.
+      - lines: [3, 3]
+        clause: ON CONFLICT (id) DO UPDATE
+        text: Bentrok di kolom id dialihkan menjadi UPDATE, bukan error.
+      - lines: [4, 5]
+        clause: SET price = excluded.price
+        text: excluded merujuk ke baris yang gagal di-insert. Hanya price dan stock yang diperbarui.
+sample:
+  description: Produk 101 sudah ada, jadi price dan stock diperbarui. Tidak ada baris baru.
+  highlightNote: Sel yang disorot = nilai yang berubah
+  input:
+    - caption: Sebelum · products
+      columns: [id, category_id, name, price, stock]
+      rows:
+        - [101, 2, Kopi Arabika 250g, 79000, 12]
+        - [102, 3, Teh Melati 100g, 25000, 30]
+  output:
+    caption: Sesudah · products
+    columns: [id, category_id, name, price, stock]
+    rows:
+      - [101, 2, Kopi Arabika 250g, 85000, 40]
+      - [102, 3, Teh Melati 100g, 25000, 30]
+    highlight: [[0, 3], [0, 4]]
+notes:
+  - type: warning
+    title: Wajib ada PRIMARY KEY atau UNIQUE
+    text: Tanpa constraint pada kolom yang dicek, bentrok tidak pernah terdeteksi. MySQL justru menyisipkan baris ganda, sedangkan PostgreSQL dan SQLite mengembalikan error.
+  - type: info
+    title: Perbedaan MySQL
+    text: ON DUPLICATE KEY UPDATE terpicu oleh UNIQUE index mana pun di tabel, bukan hanya kolom tertentu. Hati-hati pada tabel yang punya banyak UNIQUE index.
+  - type: tip
+    text: Tambahkan RETURNING * di PostgreSQL atau SQLite 3.35+ untuk langsung melihat baris hasil akhirnya.

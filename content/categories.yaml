@@ -1,0 +1,53 @@
+# Urutan di file ini = urutan tampil di beranda dan filter.
+- slug: select-basic
+  name: Dasar SELECT
+  keyword: SELECT
+  description: Filter, urutkan, pagination, dan menangani NULL.
+- slug: join
+  name: JOIN
+  keyword: JOIN
+  description: Inner, left, anti join, dan self join.
+- slug: aggregation
+  name: Agregasi
+  keyword: SUM()
+  description: GROUP BY, HAVING, dan agregasi bersyarat.
+- slug: subquery-cte
+  name: Subquery & CTE
+  keyword: WITH
+  description: Query bertahap dan hierarki dengan recursive CTE.
+- slug: window-function
+  name: Window Function
+  keyword: OVER()
+  description: Ranking, running total, dan perbandingan periode.
+- slug: date-time
+  name: Tanggal & Waktu
+  keyword: DATE
+  description: Rentang tanggal, group per bulan, isi tanggal kosong.
+- slug: string
+  name: String
+  keyword: CONCAT
+  description: Gabung, pisah, regex, dan agregasi teks.
+- slug: dml
+  name: Manipulasi Data
+  keyword: INSERT
+  description: Insert, update, delete, dan upsert.
+- slug: ddl
+  name: Struktur Tabel
+  keyword: CREATE
+  description: Tabel, constraint, index, dan view.
+- slug: transaction
+  name: Transaksi & Locking
+  keyword: BEGIN
+  description: Commit, rollback, savepoint, dan row lock.
+- slug: json
+  name: JSON
+  keyword: '->>'
+  description: Baca, filter, dan bentuk data JSON.
+- slug: performance
+  name: Performa
+  keyword: EXPLAIN
+  description: Query plan, index, dan keyset pagination.
+- slug: analytics
+  name: Resep Analitik
+  keyword: PIVOT
+  description: Duplikat, pivot, cohort, dan funnel.

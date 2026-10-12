@@ -1,0 +1,53 @@
+title: Running total penjualan harian
+summary: Hitung omzet per hari sekaligus total kumulatifnya sejak hari pertama.
+whenToUse: Saat butuh angka kumulatif dari waktu ke waktu, misalnya pertumbuhan omzet atau saldo berjalan.
+difficulty: intermediate
+tags: [running total, kumulatif, sum over, window function]
+popularity: 7
+createdAt: '2026-09-15'
+updatedAt: '2026-10-12'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.25'
+related: [top-n-per-group, group-having, last-7-days]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH daily AS (
+        SELECT DATE(o.ordered_at) AS day,
+               SUM(oi.quantity * oi.unit_price) AS revenue
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        GROUP BY DATE(o.ordered_at)
+      )
+      SELECT day, revenue,
+             SUM(revenue) OVER (ORDER BY day) AS running_total
+      FROM daily
+      ORDER BY day;
+    explanation:
+      - lines: [1, 7]
+        clause: WITH daily AS (…)
+        text: Hitung omzet per hari lebih dulu di dalam CTE.
+      - lines: [2, 2]
+        clause: DATE(o.ordered_at) AS day
+        text: Potong timestamp menjadi tanggal saja agar pesanan di hari yang sama tergabung.
+      - lines: [6, 6]
+        clause: GROUP BY DATE(o.ordered_at)
+        text: Satu baris hasil untuk setiap hari.
+      - lines: [9, 9]
+        clause: SUM(revenue) OVER (ORDER BY day)
+        text: Window function yang menjumlahkan revenue dari hari pertama sampai baris saat ini, tanpa menggabungkan baris.
+sample:
+  description: "Pesanan 3 (status pending) ikut terhitung. Tambahkan WHERE o.status = 'paid' di dalam CTE jika hanya ingin pesanan lunas. Tanggal di data contoh relatif: H-10 berarti 10 hari sebelum hari kamu menjalankan seed."
+  output:
+    caption: Hasil
+    columns: [day, revenue, running_total]
+    rows:
+      - ['H-10', '183000.00', '183000.00']
+      - ['H-5', '186000.00', '369000.00']
+      - ['H-1', '50000.00', '419000.00']
+notes:
+  - type: info
+    text: Hari tanpa penjualan tidak muncul di hasil. Untuk deret tanggal lengkap, gabungkan dengan generate_series (PostgreSQL) atau recursive CTE.
+  - type: tip
+    text: Tambahkan PARTITION BY di dalam OVER (…) untuk running total terpisah per kategori atau per customer.

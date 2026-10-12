@@ -1,0 +1,79 @@
+title: Ambil data 7 hari terakhir
+summary: Filter pesanan yang dibuat dalam 7 hari terakhir dari waktu sekarang.
+whenToUse: Saat membuat laporan atau dashboard periode berjalan, misalnya pesanan minggu ini.
+difficulty: beginner
+tags: [interval, now, tanggal, rentang waktu]
+popularity: 6
+createdAt: '2026-09-22'
+updatedAt: '2026-10-12'
+related: [running-total]
+variants:
+  - dialects: [postgresql]
+    code: |
+      SELECT id, customer_id, ordered_at
+      FROM orders
+      WHERE ordered_at >= NOW() - INTERVAL '7 days'
+      ORDER BY ordered_at DESC;
+    explanation:
+      - lines: [3, 3]
+        clause: "NOW() - INTERVAL '7 days'"
+        text: Waktu sekarang dikurangi 7 hari menjadi batas awal.
+      - lines: [3, 3]
+        clause: WHERE ordered_at >= …
+        text: Ambil pesanan yang dibuat sejak batas tersebut.
+      - lines: [4, 4]
+        clause: ORDER BY ordered_at DESC
+        text: Pesanan terbaru tampil paling atas.
+  - dialects: [mysql]
+    code: |
+      SELECT id, customer_id, ordered_at
+      FROM orders
+      WHERE ordered_at >= NOW() - INTERVAL 7 DAY
+      ORDER BY ordered_at DESC;
+    explanation:
+      - lines: [3, 3]
+        clause: NOW() - INTERVAL 7 DAY
+        text: Di MySQL, angka dan satuan INTERVAL ditulis tanpa tanda kutip.
+      - lines: [3, 3]
+        clause: WHERE ordered_at >= …
+        text: Ambil pesanan yang dibuat sejak batas tersebut.
+      - lines: [4, 4]
+        clause: ORDER BY ordered_at DESC
+        text: Pesanan terbaru tampil paling atas.
+  - dialects: [sqlite]
+    code: |
+      SELECT id, customer_id, ordered_at
+      FROM orders
+      WHERE ordered_at >= datetime('now', '-7 days')
+      ORDER BY ordered_at DESC;
+    explanation:
+      - lines: [3, 3]
+        clause: "datetime('now', '-7 days')"
+        text: SQLite tidak punya tipe tanggal khusus. Fungsi ini menghasilkan teks 'YYYY-MM-DD HH:MM:SS' (UTC) yang bisa dibandingkan langsung.
+      - lines: [3, 3]
+        clause: WHERE ordered_at >= …
+        text: Ambil pesanan yang dibuat sejak batas tersebut.
+      - lines: [4, 4]
+        clause: ORDER BY ordered_at DESC
+        text: Pesanan terbaru tampil paling atas.
+sample:
+  description: 'Tanggal di data contoh relatif terhadap hari kamu menjalankan seed: H-1 berarti kemarin. Pesanan 1 (H-10) sengaja berada di luar jendela 7 hari, jadi tidak ikut terambil.'
+  input:
+    - caption: orders
+      columns: [id, customer_id, ordered_at]
+      rows:
+        - [1, 1, 'H-10 09:15:00']
+        - [2, 2, 'H-5 14:02:00']
+        - [3, 1, 'H-1 19:40:00']
+  output:
+    caption: Hasil
+    columns: [id, customer_id, ordered_at]
+    rows:
+      - [3, 1, 'H-1 19:40:00']
+      - [2, 2, 'H-5 14:02:00']
+notes:
+  - type: warning
+    title: Zona waktu
+    text: "NOW() mengikuti zona waktu sesi database, sedangkan datetime('now') di SQLite selalu UTC. Pastikan ordered_at disimpan dengan zona waktu yang sama."
+  - type: tip
+    text: Untuk 7 hari kalender penuh (mulai pukul 00.00), pakai CURRENT_DATE - INTERVAL '7 days' di PostgreSQL atau CURDATE() - INTERVAL 7 DAY di MySQL.

@@ -1,0 +1,60 @@
+title: Ambil N baris teratas per grup
+summary: Tampilkan 3 produk terlaris di setiap kategori dengan ROW_NUMBER().
+whenToUse: Saat butuh peringkat di dalam setiap kelompok, misalnya 3 produk terlaris per kategori atau pesanan terakhir per customer.
+difficulty: intermediate
+tags: [row_number, partition by, ranking, top-n, window function]
+popularity: 9
+createdAt: '2026-09-01'
+updatedAt: '2026-10-12'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.25'
+related: [running-total, group-having, pagination]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH ranked AS (
+        SELECT
+          p.category_id,
+          p.name,
+          SUM(oi.quantity) AS total_sold,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.category_id
+            ORDER BY SUM(oi.quantity) DESC
+          ) AS rn
+        FROM products p
+        JOIN order_items oi ON oi.product_id = p.id
+        GROUP BY p.id, p.category_id, p.name
+      )
+      SELECT category_id, name, total_sold
+      FROM ranked
+      WHERE rn <= 3
+      ORDER BY category_id, rn;
+    explanation:
+      - lines: [1, 13]
+        clause: WITH ranked AS (…)
+        text: CTE untuk menghitung peringkat lebih dulu, karena hasil window function tidak bisa difilter langsung di WHERE pada query yang sama.
+      - lines: [5, 5]
+        clause: SUM(oi.quantity) AS total_sold
+        text: Total unit terjual per produk, dikelompokkan oleh GROUP BY di baris 12.
+      - lines: [6, 9]
+        clause: ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)
+        text: Memberi nomor 1, 2, 3, … yang di-reset di setiap kategori, diurutkan dari penjualan tertinggi.
+      - lines: [16, 16]
+        clause: WHERE rn <= 3
+        text: Ambil hanya 3 peringkat teratas di setiap kategori.
+sample:
+  description: Data contoh baru berisi 3 produk, jadi semuanya masuk 3 besar. Perhatikan urutannya, Kopi Robusta (3 terjual) di atas Kopi Arabika (2 terjual).
+  output:
+    caption: Hasil
+    columns: [category_id, name, total_sold]
+    rows:
+      - [2, Kopi Robusta 250g, 3]
+      - [2, Kopi Arabika 250g, 2]
+      - [3, Teh Melati 100g, 3]
+notes:
+  - type: warning
+    title: Nilai seri
+    text: Jika ada penjualan yang sama, ROW_NUMBER() memilih salah satu secara acak. Pakai RANK() atau DENSE_RANK() bila produk yang seri harus ikut tampil.
+  - type: tip
+    text: Produk yang belum pernah terjual tidak muncul karena INNER JOIN. Gunakan LEFT JOIN dan COALESCE(SUM(oi.quantity), 0) bila produk tersebut perlu ditampilkan.

@@ -1,0 +1,45 @@
+title: Total penjualan per kategori dengan HAVING
+summary: Jumlahkan omzet per kategori lalu tampilkan hanya yang di atas Rp100 ribu.
+whenToUse: Saat butuh ringkasan per kelompok, lalu menyaring kelompok berdasarkan hasil agregasinya, misalnya kategori dengan omzet di atas target.
+difficulty: beginner
+tags: [group by, having, sum, agregasi, omzet]
+popularity: 5
+createdAt: '2026-08-12'
+updatedAt: '2026-10-12'
+related: [running-total, top-n-per-group]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT c.name AS category,
+             SUM(oi.quantity * oi.unit_price) AS revenue
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      JOIN categories c ON c.id = p.category_id
+      GROUP BY c.id, c.name
+      HAVING SUM(oi.quantity * oi.unit_price) > 100000;
+    explanation:
+      - lines: [1, 2]
+        clause: SUM(oi.quantity * oi.unit_price) AS revenue
+        text: Omzet tiap item adalah jumlah dikali harga satuan, lalu dijumlahkan per grup.
+      - lines: [3, 5]
+        clause: FROM order_items oi JOIN … JOIN …
+        text: Hubungkan item pesanan ke produknya, lalu ke kategori produk tersebut.
+      - lines: [6, 6]
+        clause: GROUP BY c.id, c.name
+        text: Satu baris hasil untuk setiap kategori.
+      - lines: [7, 7]
+        clause: HAVING … > 100000
+        text: Saring setelah agregasi. WHERE tidak bisa dipakai untuk menyaring hasil SUM karena dijalankan sebelum GROUP BY.
+sample:
+  description: 'Kopi: 2 × 79.000 + 3 × 62.000 = 344.000 (lolos). Teh: 25.000 + 2 × 25.000 = 75.000 (tersaring).'
+  output:
+    caption: Hasil
+    columns: [category, revenue]
+    rows:
+      - [Kopi, '344000.00']
+notes:
+  - type: info
+    title: Urutan eksekusi
+    text: FROM dan JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY. WHERE menyaring baris sebelum dikelompokkan, HAVING menyaring kelompoknya.
+  - type: tip
+    text: MySQL dan SQLite mengizinkan HAVING revenue > 100000, tetapi PostgreSQL tidak. Menulis ulang ekspresi SUM(…) berlaku di semua dialek.

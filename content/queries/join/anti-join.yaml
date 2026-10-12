@@ -1,0 +1,59 @@
+title: Cari data tanpa relasi (anti join)
+summary: Temukan customer yang belum pernah membuat pesanan sama sekali.
+whenToUse: Saat mencari data yang tidak punya pasangan di tabel lain, misalnya customer yang belum pernah belanja untuk dikirimi promo.
+difficulty: intermediate
+tags: [not exists, anti join, subquery, join]
+popularity: 6
+createdAt: '2026-08-20'
+updatedAt: '2026-10-12'
+related: [left-join, inner-join, delete-duplicates]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT c.id, c.name, c.email
+      FROM customers c
+      WHERE NOT EXISTS (
+        SELECT 1 FROM orders o
+        WHERE o.customer_id = c.id
+      )
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT … FROM customers c
+        text: Ambil data customer sebagai tabel utama.
+      - lines: [3, 6]
+        clause: WHERE NOT EXISTS (…)
+        text: Pertahankan customer hanya jika subquery di dalamnya tidak menemukan satu baris pun.
+      - lines: [4, 5]
+        clause: SELECT 1 FROM orders o WHERE o.customer_id = c.id
+        text: Correlated subquery yang dicek per customer. Nilai yang di-SELECT tidak penting; yang dicek hanya ada atau tidaknya baris.
+      - lines: [7, 7]
+        clause: ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+sample:
+  input:
+    - caption: customers
+      columns: [id, name]
+      rows:
+        - [1, Rina Wijaya]
+        - [2, Dimas Pratama]
+        - [3, Sari Lestari]
+        - [4, Rina W.]
+    - caption: orders
+      columns: [id, customer_id]
+      rows:
+        - [1, 1]
+        - [2, 2]
+        - [3, 1]
+  output:
+    caption: Hasil
+    columns: [id, name, email]
+    rows:
+      - [3, Sari Lestari, sari@example.com]
+      - [4, Rina W., rina@example.com]
+notes:
+  - type: warning
+    title: Hati-hati dengan NOT IN
+    text: NOT IN (SELECT customer_id FROM orders) mengembalikan hasil kosong jika subquery berisi satu saja nilai NULL. NOT EXISTS aman dari masalah ini.
+  - type: tip
+    text: Alternatifnya, LEFT JOIN orders o ON o.customer_id = c.id lalu WHERE o.id IS NULL. Hasilnya sama; pilih yang paling mudah dibaca timmu.

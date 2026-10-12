@@ -1,0 +1,35 @@
+title: Pagination dengan LIMIT & OFFSET
+summary: Ambil data per halaman, misalnya 20 produk untuk halaman ketiga.
+whenToUse: Saat menampilkan data panjang per halaman, misalnya katalog produk 20 item per halaman.
+difficulty: beginner
+tags: [limit, offset, pagination, paging, halaman]
+popularity: 8
+createdAt: '2026-08-02'
+updatedAt: '2026-10-12'
+related: [top-n-per-group]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT id, name, price
+      FROM products
+      ORDER BY id
+      LIMIT 20 OFFSET 40;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT id, name, price FROM products
+        text: Pilih kolom yang ditampilkan di daftar produk.
+      - lines: [3, 3]
+        clause: ORDER BY id
+        text: Wajib agar urutan halaman stabil. Tanpa ORDER BY, database bebas mengembalikan urutan berbeda di setiap permintaan.
+      - lines: [4, 4]
+        clause: LIMIT 20
+        text: Jumlah baris per halaman.
+      - lines: [4, 4]
+        clause: OFFSET 40
+        text: 'Lewati 40 baris pertama (halaman 1 dan 2). Rumusnya: OFFSET = (halaman − 1) × ukuran halaman.'
+notes:
+  - type: warning
+    title: OFFSET besar makin lambat
+    text: Database tetap membaca semua baris yang dilewati. Untuk data jutaan baris, gunakan keyset pagination, misalnya WHERE id > id_terakhir ORDER BY id LIMIT 20.
+  - type: info
+    text: Sintaks LIMIT … OFFSET … sama di PostgreSQL, MySQL, dan SQLite. SQL Server memakai OFFSET … ROWS FETCH NEXT … ROWS ONLY.

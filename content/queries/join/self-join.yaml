@@ -1,0 +1,49 @@
+title: 'Self join: karyawan dan manajernya'
+summary: Gabungkan tabel employees dengan dirinya sendiri untuk menampilkan nama atasan tiap karyawan.
+whenToUse: Saat satu tabel menyimpan relasi ke dirinya sendiri, misalnya karyawan dan atasannya, atau kategori dan induk kategorinya.
+difficulty: intermediate
+tags: [self join, hierarki, left join]
+popularity: 4
+createdAt: '2026-09-10'
+updatedAt: '2026-10-12'
+related: [left-join, inner-join]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT e.name AS employee,
+             m.name AS manager
+      FROM employees e
+      LEFT JOIN employees m ON m.id = e.manager_id
+      ORDER BY e.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT e.name …, m.name …
+        text: Tabel yang sama dipakai dua kali dengan alias berbeda, e untuk karyawan dan m untuk manajer.
+      - lines: [3, 4]
+        clause: LEFT JOIN employees m ON m.id = e.manager_id
+        text: Pasangkan setiap karyawan dengan baris atasannya. LEFT JOIN menjaga karyawan yang tidak punya atasan.
+      - lines: [5, 5]
+        clause: ORDER BY e.id
+        text: Urutkan sesuai id karyawan.
+sample:
+  highlightNote: Sel yang disorot = NULL karena Andi tidak punya atasan
+  input:
+    - caption: employees
+      columns: [id, name, manager_id]
+      rows:
+        - [1, Andi Saputra, null]
+        - [2, Budi Hartono, 1]
+        - [3, Citra Dewi, 1]
+  output:
+    caption: Hasil
+    columns: [employee, manager]
+    rows:
+      - [Andi Saputra, null]
+      - [Budi Hartono, Andi Saputra]
+      - [Citra Dewi, Andi Saputra]
+    highlight: [[0, 1]]
+notes:
+  - type: info
+    text: Ganti LEFT JOIN dengan INNER JOIN jika karyawan tanpa atasan tidak perlu ditampilkan.
+  - type: tip
+    text: Untuk menelusuri seluruh rantai atasan (atasan dari atasan), gunakan recursive CTE.

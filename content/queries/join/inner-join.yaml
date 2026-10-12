@@ -1,0 +1,56 @@
+title: 'INNER JOIN: gabungkan dua tabel'
+summary: Tampilkan pesanan berstatus paid beserta nama customer pemesannya.
+whenToUse: Saat kamu hanya butuh data yang punya pasangan di kedua tabel, misalnya pesanan beserta nama pemesannya.
+difficulty: beginner
+tags: [inner join, join]
+popularity: 7
+createdAt: '2026-08-04'
+updatedAt: '2026-10-12'
+related: [left-join, anti-join]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT o.id, c.name, o.status, o.ordered_at
+      FROM orders o
+      INNER JOIN customers c ON c.id = o.customer_id
+      WHERE o.status = 'paid'
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 1]
+        clause: SELECT o.id, c.name, …
+        text: Ambil kolom dari kedua tabel. Prefix alias (o. dan c.) mencegah nama kolom yang ambigu.
+      - lines: [2, 3]
+        clause: INNER JOIN customers c ON c.id = o.customer_id
+        text: Hanya baris yang punya pasangan di kedua tabel yang dipertahankan.
+      - lines: [4, 4]
+        clause: "WHERE o.status = 'paid'"
+        text: Saring hasil gabungan agar hanya pesanan yang sudah dibayar.
+      - lines: [5, 5]
+        clause: ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+sample:
+  description: 'Tanggal di data contoh relatif: H-10 berarti 10 hari sebelum hari kamu menjalankan seed.'
+  input:
+    - caption: orders
+      columns: [id, customer_id, status]
+      rows:
+        - [1, 1, paid]
+        - [2, 2, paid]
+        - [3, 1, pending]
+    - caption: customers
+      columns: [id, name]
+      rows:
+        - [1, Rina Wijaya]
+        - [2, Dimas Pratama]
+  output:
+    caption: Hasil
+    columns: [id, name, status, ordered_at]
+    rows:
+      - [1, Rina Wijaya, paid, 'H-10 09:15:00']
+      - [2, Dimas Pratama, paid, 'H-5 14:02:00']
+notes:
+  - type: info
+    text: JOIN tanpa kata INNER artinya sama dengan INNER JOIN.
+  - type: tip
+    title: Index kolom penghubung
+    text: Di PostgreSQL, foreign key tidak otomatis membuat index. Buat index di orders.customer_id agar JOIN tetap cepat di tabel besar.

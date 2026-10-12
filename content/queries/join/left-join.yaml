@@ -1,0 +1,62 @@
+title: 'LEFT JOIN: sertakan data tanpa pasangan'
+summary: Tampilkan semua customer beserta pesanannya, termasuk customer yang belum pernah memesan.
+whenToUse: Saat kamu butuh semua baris dari tabel utama, termasuk yang belum punya data terkait, misalnya daftar semua customer beserta pesanannya, termasuk customer baru yang belum pernah belanja.
+difficulty: beginner
+tags: [left join, outer join, join, 'null']
+popularity: 10
+createdAt: '2026-08-04'
+updatedAt: '2026-10-12'
+related: [inner-join, anti-join, self-join]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT c.name, o.id AS order_id, o.ordered_at
+      FROM customers c
+      LEFT JOIN orders o ON o.customer_id = c.id
+      ORDER BY c.name, o.id;
+    explanation:
+      - lines: [1, 1]
+        clause: SELECT c.name, o.id AS order_id, …
+        text: Kolom yang ditampilkan. Kolom dari orders akan bernilai NULL jika customer tidak punya pesanan.
+      - lines: [2, 2]
+        clause: FROM customers c
+        text: Tabel kiri. Semua barisnya pasti muncul di hasil.
+      - lines: [3, 3]
+        clause: LEFT JOIN orders o ON o.customer_id = c.id
+        text: Pasangkan setiap customer dengan pesanannya. Customer tanpa pesanan tetap ikut dengan nilai NULL di kolom orders.
+      - lines: [4, 4]
+        clause: ORDER BY c.name, o.id
+        text: Urutkan supaya hasilnya konsisten setiap kali dijalankan.
+sample:
+  description: 'Tanggal di data contoh relatif: H-10 berarti 10 hari sebelum hari kamu menjalankan seed.'
+  highlightNote: Sel yang disorot = NULL karena customer belum punya pesanan
+  input:
+    - caption: customers
+      columns: [id, name]
+      rows:
+        - [1, Rina Wijaya]
+        - [2, Dimas Pratama]
+        - [3, Sari Lestari]
+        - [4, Rina W.]
+    - caption: orders
+      columns: [id, customer_id]
+      rows:
+        - [1, 1]
+        - [2, 2]
+        - [3, 1]
+  output:
+    caption: Hasil
+    columns: [name, order_id, ordered_at]
+    rows:
+      - [Dimas Pratama, 2, 'H-5 14:02:00']
+      - [Rina W., null, null]
+      - [Rina Wijaya, 1, 'H-10 09:15:00']
+      - [Rina Wijaya, 3, 'H-1 19:40:00']
+      - [Sari Lestari, null, null]
+    highlight: [[1, 1], [1, 2], [4, 1], [4, 2]]
+notes:
+  - type: warning
+    title: Filter tabel kanan di ON, bukan WHERE
+    text: "Kondisi seperti o.status = 'paid' di WHERE akan membuang baris NULL, sehingga LEFT JOIN berperilaku seperti INNER JOIN. Letakkan kondisinya di ON jika customer tanpa pesanan tetap ingin ditampilkan."
+  - type: tip
+    text: Untuk mencari customer yang belum pernah memesan saja, tambahkan WHERE o.id IS NULL atau gunakan anti join.
