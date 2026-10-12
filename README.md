@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QueryLab
 
-## Getting Started
+Kumpulan contoh query SQL siap salin untuk **PostgreSQL, MySQL, dan SQLite**, lengkap dengan penjelasan per klausa, contoh data sebelum/sesudah, dan catatan jebakan umum.
 
-First, run the development server:
+## Fitur
+
+- **Salin dalam satu klik** dari kartu, halaman detail, atau bar yang menempel di bawah layar pada mobile (dengan fallback bila Clipboard API ditolak).
+- **Tab dialek** dengan pilihan yang diingat di perangkat.
+- **Pencarian instan** (toleran typo) + filter kategori & level + urutan; semua tersimpan di URL.
+- **Penjelasan interaktif**: pilih langkah untuk menyorot baris kode terkait.
+- **Skema contoh** (DDL per dialek + data seed) agar semua contoh bisa dicoba di database lokal.
+- Favorit tanpa login, tema terang/gelap, shortcut `/` atau `Ctrl/⌘ + K` untuk mencari.
+- Semua halaman diprerender statis; metadata, sitemap, robots, dan JSON-LD untuk SEO.
+
+## Menjalankan
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Perintah         | Fungsi                                 |
+| ---------------- | -------------------------------------- |
+| `pnpm dev`       | Dev server                             |
+| `pnpm build`     | Build produksi                         |
+| `pnpm start`     | Menjalankan hasil build                |
+| `pnpm test`      | Unit test + validasi semua file konten |
+| `pnpm lint`      | ESLint                                 |
+| `pnpm typecheck` | Pemeriksaan TypeScript                 |
+| `pnpm format`    | Prettier                               |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Konfigurasi
 
-## Learn More
+Salin `.env.example` menjadi `.env.local` lalu isi:
 
-To learn more about Next.js, take a look at the following resources:
+| Variabel               | Keterangan                                                      |
+| ---------------------- | --------------------------------------------------------------- |
+| `NEXT_PUBLIC_SITE_URL` | URL publik situs, dipakai untuk canonical, sitemap, dan JSON-LD |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Menambah konten
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Setiap query adalah satu file YAML di `content/queries/<kategori>/<slug>.yaml`. Format lengkap dan panduan gaya ada di [CLAUDE.md](CLAUDE.md#5-menambah-contoh-query). Jalankan `pnpm test` setelah menambah konten; build akan gagal bila ada konten yang tidak valid.
 
-## Deploy on Vercel
+## Dokumen
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [docs/PLANNING.md](docs/PLANNING.md) — rencana produk, UX, dan roadmap.
+- [CLAUDE.md](CLAUDE.md) — konvensi kode dan konten.
