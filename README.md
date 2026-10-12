@@ -43,7 +43,3 @@ Salin `.env.example` menjadi `.env.local` lalu isi:
 
 Setiap query adalah satu file YAML di `content/queries/<kategori>/<slug>.yaml`. Format lengkap dan panduan gaya ada di [CLAUDE.md](CLAUDE.md#5-menambah-contoh-query). Jalankan `pnpm test` setelah menambah konten; build akan gagal bila ada konten yang tidak valid.
 
-## Dokumen
-
-- [docs/PLANNING.md](docs/PLANNING.md) — rencana produk, UX, dan roadmap.
-- [CLAUDE.md](CLAUDE.md) — konvensi kode dan konten.
