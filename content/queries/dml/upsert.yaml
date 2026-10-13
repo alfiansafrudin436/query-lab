@@ -5,12 +5,12 @@ difficulty: intermediate
 tags: [upsert, on conflict, on duplicate key, insert, merge]
 popularity: 11
 createdAt: '2026-09-28'
-updatedAt: '2026-10-12'
+updatedAt: '2026-10-13'
 minVersions:
   postgresql: '9.5'
   mysql: '8.0.19'
   sqlite: '3.24'
-related: [delete-duplicates]
+related: [delete-duplicates, update-join, insert-select]
 variants:
   - dialects: [postgresql]
     note: Kolom di ON CONFLICT (…) wajib punya PRIMARY KEY atau UNIQUE constraint.

@@ -1,0 +1,94 @@
+title: 'FULL OUTER JOIN: gabungkan baris dari dua sisi'
+summary: Tampilkan semua baris dari kedua tabel, termasuk yang tidak punya pasangan di sisi mana pun.
+whenToUse: Saat mencocokkan dua sumber data yang keduanya bisa punya baris tanpa pasangan, misalnya membandingkan data penjualan dengan data pembukuan.
+difficulty: intermediate
+tags: [full outer join, full join, union, right join, rekonsiliasi]
+popularity: 5
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  sqlite: '3.39'
+related: [left-join, anti-join, inner-join]
+variants:
+  - dialects: [postgresql, sqlite]
+    note: SQLite baru mendukung FULL OUTER JOIN sejak versi 3.39 (2022). Di versi lebih lama, pakai cara emulasi seperti varian MySQL.
+    code: |
+      SELECT
+        c.id AS customer_id,
+        c.name,
+        o.id AS order_id,
+        o.status
+      FROM customers c
+      FULL OUTER JOIN orders o ON o.customer_id = c.id
+      ORDER BY c.id, o.id;
+    explanation:
+      - lines: [1, 5]
+        clause: SELECT c.id, c.name, o.id, o.status
+        text: Kolom dari kedua sisi. Kolom milik sisi yang tidak punya pasangan akan bernilai NULL.
+      - lines: [6, 6]
+        clause: FROM customers c
+        text: Pada FULL OUTER JOIN, tabel mana yang ditulis lebih dulu tidak memengaruhi baris yang dihasilkan, karena kedua sisi diperlakukan sama.
+      - lines: [7, 7]
+        clause: FULL OUTER JOIN orders o ON o.customer_id = c.id
+        text: Ambil semua pasangan yang cocok, lalu tambahkan baris customer tanpa pesanan dan baris pesanan tanpa customer. Kata OUTER bersifat opsional, FULL JOIN berarti sama.
+      - lines: [8, 8]
+        clause: ORDER BY c.id, o.id
+        text: Urutkan agar baris tanpa pasangan mudah ditemukan.
+  - dialects: [mysql]
+    note: MySQL 8 tidak punya FULL OUTER JOIN, jadi hasilnya disusun dari gabungan LEFT JOIN dan RIGHT JOIN.
+    code: |
+      SELECT c.id AS customer_id, c.name, o.id AS order_id, o.status
+      FROM customers c
+      LEFT JOIN orders o ON o.customer_id = c.id
+      UNION
+      SELECT c.id AS customer_id, c.name, o.id AS order_id, o.status
+      FROM customers c
+      RIGHT JOIN orders o ON o.customer_id = c.id
+      ORDER BY customer_id, order_id;
+    explanation:
+      - lines: [1, 3]
+        clause: LEFT JOIN orders o …
+        text: Bagian pertama menghasilkan semua customer beserta pesanannya, termasuk customer yang belum pernah memesan.
+      - lines: [4, 4]
+        clause: UNION
+        text: UNION tanpa ALL membuang baris kembar, yaitu pasangan yang sudah muncul di kedua bagian. Inilah kunci emulasinya, jangan diganti UNION ALL.
+      - lines: [5, 7]
+        clause: RIGHT JOIN orders o …
+        text: Bagian kedua menghasilkan semua pesanan beserta customer-nya, termasuk pesanan yang tidak punya customer.
+      - lines: [8, 8]
+        clause: ORDER BY customer_id, order_id
+        text: ORDER BY di akhir berlaku untuk hasil gabungan, dan merujuk alias kolom dari SELECT pertama.
+sample:
+  description: Sari dan Rina W. belum pernah memesan, jadi kolom pesanannya NULL. Rina Wijaya punya dua pesanan sehingga muncul dua kali.
+  input:
+    - caption: customers
+      columns: [id, name]
+      rows:
+        - [1, Rina Wijaya]
+        - [2, Dimas Pratama]
+        - [3, Sari Lestari]
+        - [4, Rina W.]
+    - caption: orders
+      columns: [id, customer_id, status]
+      rows:
+        - [1, 1, paid]
+        - [2, 2, paid]
+        - [3, 1, pending]
+  output:
+    caption: Hasil
+    columns: [customer_id, name, order_id, status]
+    rows:
+      - [1, Rina Wijaya, 1, paid]
+      - [1, Rina Wijaya, 3, pending]
+      - [2, Dimas Pratama, 2, paid]
+      - [3, Sari Lestari, null, null]
+      - [4, Rina W., null, null]
+notes:
+  - type: info
+    title: Di skema contoh ini hasilnya sama dengan LEFT JOIN
+    text: Kolom orders.customer_id bersifat NOT NULL dan punya foreign key, jadi tidak mungkin ada pesanan tanpa customer. Sisi kanan selalu berpasangan, sehingga hasilnya identik dengan LEFT JOIN. FULL OUTER JOIN baru memberi nilai tambah ketika kedua sisi bisa punya baris tanpa pasangan, misalnya saat mencocokkan dua tabel impor dari sistem berbeda.
+  - type: tip
+    title: Mencari baris yang tidak cocok di kedua sisi
+    text: Tambahkan WHERE c.id IS NULL OR o.id IS NULL untuk menyisakan hanya baris yang gagal dipasangkan. Pola ini sering dipakai untuk rekonsiliasi data.
+  - type: warning
+    text: Pada hasil FULL OUTER JOIN, jangan memakai kolom penghubung dari satu sisi saja sebagai identitas baris, karena nilainya bisa NULL. Pakai COALESCE(c.id, o.customer_id) agar selalu terisi.

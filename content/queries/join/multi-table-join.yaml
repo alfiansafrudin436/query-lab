@@ -1,0 +1,78 @@
+title: 'JOIN empat tabel: pesanan sampai nama produk'
+summary: Rangkai orders, customers, order_items, dan products menjadi satu laporan rinci per item pesanan.
+whenToUse: Saat data yang kamu butuhkan tersebar di beberapa tabel sekaligus, misalnya laporan penjualan yang memuat nama pemesan dan nama produk.
+difficulty: intermediate
+tags: [join, multi table, banyak tabel, relasi, laporan]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [inner-join, left-join, aggregate-functions]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        o.id AS order_id,
+        c.name AS customer_name,
+        p.name AS product_name,
+        oi.quantity,
+        oi.quantity * oi.unit_price AS subtotal
+      FROM orders o
+      JOIN customers c ON c.id = o.customer_id
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN products p ON p.id = oi.product_id
+      WHERE o.status = 'paid'
+      ORDER BY o.id, p.name;
+    explanation:
+      - lines: [1, 5]
+        clause: SELECT o.id, c.name, p.name, oi.quantity
+        text: Ambil kolom dari empat tabel sekaligus. Alias kolom dipakai karena orders dan customers sama-sama punya kolom bernama name dan id.
+      - lines: [6, 6]
+        clause: oi.quantity * oi.unit_price AS subtotal
+        text: Hitung subtotal per item langsung di query. unit_price disimpan di order_items, bukan diambil dari products, agar harga saat transaksi tidak berubah ketika harga katalog diperbarui.
+      - lines: [7, 7]
+        clause: FROM orders o
+        text: Mulai dari tabel pusatnya. Memilih titik awal yang benar membuat rantai JOIN berikutnya terbaca wajar.
+      - lines: [8, 8]
+        clause: JOIN customers c ON c.id = o.customer_id
+        text: Langkah pertama, lengkapi pesanan dengan data pemesannya.
+      - lines: [9, 10]
+        clause: JOIN order_items oi … JOIN products p …
+        text: Setiap JOIN berikutnya boleh merujuk alias tabel yang sudah disebut sebelumnya. order_items menjembatani orders ke products, karena keduanya tidak terhubung langsung.
+      - lines: [11, 11]
+        clause: "WHERE o.status = 'paid'"
+        text: Saring hasil gabungan, bukan tabel aslinya. Syarat ini berlaku setelah semua JOIN selesai.
+      - lines: [12, 12]
+        clause: ORDER BY o.id, p.name
+        text: Urutkan per pesanan, lalu per nama produk di dalam pesanan yang sama.
+sample:
+  description: Satu baris per item pesanan, jadi pesanan 1 yang berisi dua produk muncul dua kali. Pesanan 3 tidak ikut karena statusnya masih pending.
+  input:
+    - caption: orders
+      columns: [id, customer_id, status]
+      rows:
+        - [1, 1, paid]
+        - [2, 2, paid]
+        - [3, 1, pending]
+    - caption: order_items
+      columns: [id, order_id, product_id, quantity, unit_price]
+      rows:
+        - [1, 1, 101, 2, 79000]
+        - [2, 1, 102, 1, 25000]
+        - [3, 2, 103, 3, 62000]
+        - [4, 3, 102, 2, 25000]
+  output:
+    caption: Hasil
+    columns: [order_id, customer_name, product_name, quantity, subtotal]
+    rows:
+      - [1, Rina Wijaya, Kopi Arabika 250g, 2, 158000]
+      - [1, Rina Wijaya, Teh Melati 100g, 1, 25000]
+      - [2, Dimas Pratama, Kopi Robusta 250g, 3, 186000]
+notes:
+  - type: warning
+    title: Jumlah baris ikut berlipat
+    text: Setelah di-JOIN ke order_items, satu pesanan menghasilkan sebanyak mungkin baris sesuai jumlah itemnya. Akibatnya, SUM pada kolom milik orders akan terhitung berulang. Agregasi sebaiknya dilakukan di CTE terpisah lebih dulu.
+  - type: tip
+    title: Urutan JOIN tidak memengaruhi hasil
+    text: Pada INNER JOIN, urutan penulisan tidak mengubah hasil karena query planner bebas memilih urutan eksekusi tercepat. Yang berubah hanyalah keterbacaan. Pada LEFT JOIN, urutan justru berpengaruh.
+  - type: tip
+    text: Satu LEFT JOIN di tengah rantai membuat semua JOIN sesudahnya ikut berperilaku seperti LEFT JOIN, karena kolom penghubungnya sudah bisa bernilai NULL.

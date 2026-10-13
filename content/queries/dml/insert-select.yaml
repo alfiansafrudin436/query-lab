@@ -1,0 +1,70 @@
+title: 'INSERT … SELECT: isi tabel dari hasil query'
+summary: Salin item pesanan lama ke pesanan baru tanpa mengirim datanya bolak-balik ke aplikasi.
+whenToUse: Saat perlu menyalin atau memindahkan banyak baris sekaligus, misalnya fitur "ulangi pesanan", mengisi tabel arsip, atau mengisi tabel ringkasan.
+difficulty: intermediate
+tags: [insert select, salin data, copy, arsip, bulk insert]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [update-join, upsert, multi-table-join]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      INSERT INTO order_items (order_id, product_id, quantity, unit_price)
+      SELECT
+        3,
+        oi.product_id,
+        oi.quantity,
+        oi.unit_price
+      FROM order_items oi
+      WHERE oi.order_id = 1;
+    explanation:
+      - lines: [1, 1]
+        clause: INSERT INTO order_items (…)
+        text: Daftar kolom tujuan. Kolom id tidak disertakan agar nilainya dibuat otomatis oleh database.
+      - lines: [2, 2]
+        clause: SELECT
+        text: Kata VALUES diganti seluruhnya oleh SELECT. Jumlah dan urutan kolom hasil SELECT harus sama persis dengan daftar kolom di atasnya.
+      - lines: [3, 3]
+        clause: Nilai tetap 3 sebagai order_id
+        text: Nilai tetap boleh dicampur dengan kolom dari tabel. Angka ini adalah id pesanan tujuan, sama untuk semua baris yang disalin.
+      - lines: [4, 6]
+        clause: oi.product_id, oi.quantity, oi.unit_price
+        text: Kolom yang disalin apa adanya dari pesanan lama, termasuk harga saat transaksi itu terjadi.
+      - lines: [7, 8]
+        clause: FROM order_items oi WHERE oi.order_id = 1
+        text: Sumber datanya. Semua baris yang lolos WHERE akan tersalin, jadi jumlah baris baru ditentukan oleh query ini.
+sample:
+  description: Pesanan 1 punya dua item, jadi dua baris baru ditambahkan ke pesanan 3. Baris yang sudah ada di pesanan 3 tidak tersentuh, dan id baru dibuat otomatis melanjutkan nilai terakhir.
+  highlightNote: Baris yang disorot = baris baru hasil INSERT
+  input:
+    - caption: Sebelum · order_items
+      columns: [id, order_id, product_id, quantity, unit_price]
+      rows:
+        - [1, 1, 101, 2, 79000]
+        - [2, 1, 102, 1, 25000]
+        - [3, 2, 103, 3, 62000]
+        - [4, 3, 102, 2, 25000]
+  output:
+    caption: Sesudah · order_items
+    columns: [id, order_id, product_id, quantity, unit_price]
+    rows:
+      - [1, 1, 101, 2, 79000]
+      - [2, 1, 102, 1, 25000]
+      - [3, 2, 103, 3, 62000]
+      - [4, 3, 102, 2, 25000]
+      - [5, 3, 101, 2, 79000]
+      - [6, 3, 102, 1, 25000]
+    highlight: [[4, 0], [4, 1], [4, 2], [4, 3], [4, 4], [5, 0], [5, 1], [5, 2], [5, 3], [5, 4]]
+notes:
+  - type: tip
+    title: Uji dengan SELECT lebih dulu
+    text: Jalankan bagian SELECT-nya sendiri sebelum menambahkan baris INSERT di atasnya. Baris yang muncul di hasil SELECT itulah yang akan masuk ke tabel, jadi ini cara paling murah memastikan tidak ada yang keliru.
+  - type: warning
+    title: Tidak ada pengaman terhadap data kembar
+    text: INSERT … SELECT akan menyisipkan baris yang sama berulang kali bila dijalankan dua kali. Tambahkan WHERE NOT EXISTS (…) untuk melewati baris yang sudah ada, atau pakai UPSERT bila tabelnya punya UNIQUE constraint.
+  - type: warning
+    title: Sequence PostgreSQL bisa tertinggal
+    text: Bila data awal dimasukkan dengan id eksplisit, sequence di PostgreSQL tidak ikut maju sehingga INSERT berikutnya gagal karena id bentrok. Perbaiki dengan SELECT setval('order_items_id_seq', (SELECT MAX(id) FROM order_items)) seperti pada halaman skema contoh.
+  - type: tip
+    text: Pola ini jauh lebih cepat daripada membaca data ke aplikasi lalu mengirimkannya kembali satu per satu, karena seluruh pekerjaan terjadi di dalam database dalam satu perjalanan.

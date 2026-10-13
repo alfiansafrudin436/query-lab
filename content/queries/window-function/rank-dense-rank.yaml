@@ -1,0 +1,72 @@
+title: 'RANK vs DENSE_RANK: beda penomoran saat seri'
+summary: Bandingkan ROW_NUMBER, RANK, dan DENSE_RANK berdampingan untuk melihat cara masing-masing menangani nilai seri.
+whenToUse: Saat membuat papan peringkat dan perlu memutuskan apa yang terjadi pada nilai yang sama, misalnya dua produk dengan penjualan identik.
+difficulty: intermediate
+tags: [rank, dense_rank, row_number, peringkat, ranking, seri, window function]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.25'
+related: [top-n-per-group, running-total, aggregate-functions]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        p.name,
+        SUM(oi.quantity) AS total_terjual,
+        ROW_NUMBER() OVER (ORDER BY SUM(oi.quantity) DESC) AS nomor_urut,
+        RANK() OVER (ORDER BY SUM(oi.quantity) DESC) AS peringkat_rank,
+        DENSE_RANK() OVER (ORDER BY SUM(oi.quantity) DESC) AS peringkat_dense
+      FROM products p
+      JOIN order_items oi ON oi.product_id = p.id
+      GROUP BY p.id, p.name
+      ORDER BY total_terjual DESC, p.name;
+    explanation:
+      - lines: [3, 3]
+        clause: SUM(oi.quantity) AS total_terjual
+        text: Nilai yang jadi dasar peringkat. Fungsi agregat boleh dipakai langsung di dalam OVER (…) karena window function dihitung setelah GROUP BY selesai.
+      - lines: [4, 4]
+        clause: ROW_NUMBER()
+        text: Memberi nomor 1, 2, 3, … tanpa pernah mengulang. Dua baris yang nilainya seri tetap mendapat nomor berbeda, dan pembagiannya tidak dapat diprediksi.
+      - lines: [5, 5]
+        clause: RANK()
+        text: Baris seri mendapat peringkat yang sama, lalu peringkat berikutnya melompat sebanyak jumlah baris yang seri. Inilah pola "juara bersama" seperti di klasemen olahraga.
+      - lines: [6, 6]
+        clause: DENSE_RANK()
+        text: Baris seri juga mendapat peringkat sama, tetapi peringkat berikutnya tidak melompat. Cocok ketika yang kamu butuhkan adalah tingkatan nilai, bukan posisi baris.
+      - lines: [7, 9]
+        clause: GROUP BY p.id, p.name
+        text: Satu baris per produk lebih dulu, baru diberi peringkat. Tanpa GROUP BY, peringkat akan dihitung per item pesanan.
+      - lines: [10, 10]
+        clause: ORDER BY total_terjual DESC, p.name
+        text: 'ORDER BY di luar window berfungsi mengurutkan tampilan hasil. Perhatikan bahwa ini terpisah dari ORDER BY di dalam OVER (…), yang menentukan dasar penomoran.'
+sample:
+  description: Kopi Robusta dan Teh Melati sama-sama terjual 3 unit. RANK melompat ke 3 setelah dua baris seri, sedangkan DENSE_RANK lanjut ke 2. Nomor urut 2 dan 1 pada baris seri dibagikan sembarang, jadi di database atau percobaan lain bisa tertukar.
+  input:
+    - caption: order_items
+      columns: [order_id, product_id, quantity]
+      rows:
+        - [1, 101, 2]
+        - [1, 102, 1]
+        - [2, 103, 3]
+        - [3, 102, 2]
+  output:
+    caption: Hasil
+    columns: [name, total_terjual, nomor_urut, peringkat_rank, peringkat_dense]
+    rows:
+      - [Kopi Robusta 250g, 3, 2, 1, 1]
+      - [Teh Melati 100g, 3, 1, 1, 1]
+      - [Kopi Arabika 250g, 2, 3, 3, 2]
+notes:
+  - type: warning
+    title: ROW_NUMBER tidak stabil pada nilai seri
+    text: Bila dasar pengurutannya mengandung nilai seri, pembagian nomor di antara baris tersebut bebas ditentukan database dan bisa berubah antar percobaan. Tambahkan kolom pemecah seri yang unik, misalnya ORDER BY SUM(oi.quantity) DESC, p.id, agar hasilnya selalu sama.
+  - type: tip
+    title: Memilih yang mana
+    text: Pakai ROW_NUMBER untuk pagination atau mengambil tepat satu baris per grup. Pakai RANK bila posisi yang terlewat memang bermakna, misalnya peringkat juara. Pakai DENSE_RANK bila ingin mengambil "tiga nilai tertinggi" dan semua baris yang seri harus ikut tampil.
+  - type: warning
+    text: Window function tidak bisa dipakai di WHERE atau HAVING, karena keduanya diproses lebih dulu. Untuk menyaring berdasarkan peringkat, bungkus query ini dalam CTE seperti pada contoh Top-N per grup.
+  - type: info
+    text: Produk yang belum pernah terjual tidak muncul karena INNER JOIN. Ganti ke LEFT JOIN dan pakai COALESCE(SUM(oi.quantity), 0) bila produk tersebut perlu ikut diberi peringkat.

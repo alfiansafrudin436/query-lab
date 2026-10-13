@@ -1,0 +1,62 @@
+title: COUNT, SUM, AVG, MIN, MAX dalam satu query
+summary: Ringkas seluruh tabel menjadi satu baris berisi jumlah, total, rata-rata, nilai terendah, dan tertinggi.
+whenToUse: Saat butuh angka ringkasan untuk kartu statistik atau dashboard, misalnya total unit terjual dan harga rata-rata per transaksi.
+difficulty: beginner
+tags: [count, sum, avg, min, max, agregasi, ringkasan]
+popularity: 10
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [group-having, conditional-aggregate, multi-table-join]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        COUNT(*) AS jumlah_item,
+        SUM(oi.quantity) AS total_unit,
+        ROUND(AVG(oi.unit_price), 2) AS harga_rata_rata,
+        MIN(oi.unit_price) AS harga_terendah,
+        MAX(oi.unit_price) AS harga_tertinggi
+      FROM order_items oi;
+    explanation:
+      - lines: [2, 2]
+        clause: COUNT(*) AS jumlah_item
+        text: Hitung banyaknya baris. COUNT(*) menghitung semua baris, sedangkan COUNT(kolom) hanya menghitung baris yang kolomnya tidak NULL.
+      - lines: [3, 3]
+        clause: SUM(oi.quantity) AS total_unit
+        text: Jumlahkan seluruh nilai kolom. Bila tidak ada baris sama sekali, SUM mengembalikan NULL, bukan nol.
+      - lines: [4, 4]
+        clause: ROUND(AVG(oi.unit_price), 2)
+        text: AVG membagi SUM dengan jumlah baris yang nilainya tidak NULL. ROUND dipakai agar hasilnya tidak berekor banyak angka desimal.
+      - lines: [5, 6]
+        clause: MIN(…) dan MAX(…)
+        text: Nilai terkecil dan terbesar. Keduanya juga bekerja pada teks dan tanggal, bukan hanya angka.
+      - lines: [7, 7]
+        clause: FROM order_items oi
+        text: Tanpa GROUP BY, seluruh tabel dianggap satu kelompok sehingga hasilnya selalu tepat satu baris.
+sample:
+  description: Empat baris order_items diringkas menjadi satu baris. Rata-rata dihitung dari harga per unit, bukan dari total transaksi.
+  input:
+    - caption: order_items
+      columns: [id, order_id, product_id, quantity, unit_price]
+      rows:
+        - [1, 1, 101, 2, 79000]
+        - [2, 1, 102, 1, 25000]
+        - [3, 2, 103, 3, 62000]
+        - [4, 3, 102, 2, 25000]
+  output:
+    caption: Hasil
+    columns: [jumlah_item, total_unit, harga_rata_rata, harga_terendah, harga_tertinggi]
+    rows:
+      - [4, 8, '47750.00', 25000, 79000]
+notes:
+  - type: warning
+    title: SUM pada tabel kosong menghasilkan NULL
+    text: Bila WHERE menyaring semua baris, SUM dan AVG mengembalikan NULL sementara COUNT mengembalikan 0. Bungkus dengan COALESCE(SUM(…), 0) bila hasilnya langsung dipakai dalam perhitungan.
+  - type: warning
+    title: Fungsi agregat mengabaikan NULL
+    text: AVG hanya membagi dengan jumlah baris yang nilainya ada. Jadi AVG pada kolom berisi NULL tidak sama dengan SUM(kolom) / COUNT(*). Pakai AVG(COALESCE(kolom, 0)) bila NULL seharusnya dihitung sebagai nol.
+  - type: info
+    title: Jumlah desimal berbeda antar dialek
+    text: PostgreSQL dan MySQL menampilkan 47750.00 karena kolomnya bertipe NUMERIC/DECIMAL dengan dua desimal, sedangkan SQLite menampilkan 47750 karena tipe numeriknya dinamis.
+  - type: tip
+    text: Untuk uang, hindari tipe FLOAT dan gunakan NUMERIC atau DECIMAL seperti di skema contoh, agar hasil SUM tidak melenceng karena pembulatan biner.

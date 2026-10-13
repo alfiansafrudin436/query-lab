@@ -1,0 +1,86 @@
+title: Telusuri hierarki kategori dengan recursive CTE
+summary: Turuni kategori bertingkat dari induk sampai anak terdalam, lengkap dengan tingkat kedalamannya.
+whenToUse: Saat data berbentuk pohon dalam satu tabel, misalnya kategori berinduk, struktur organisasi, atau balasan komentar bertingkat.
+difficulty: advanced
+tags: [recursive cte, with recursive, hierarki, pohon, tree, parent_id]
+popularity: 6
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.8.3'
+related: [cte-staged, self-join, subquery-in-exists]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH RECURSIVE category_tree AS (
+        SELECT
+          c.id,
+          c.name,
+          c.parent_id,
+          0 AS depth
+        FROM categories c
+        WHERE c.parent_id IS NULL
+        UNION ALL
+        SELECT
+          child.id,
+          child.name,
+          child.parent_id,
+          parent.depth + 1
+        FROM categories child
+        JOIN category_tree parent ON parent.id = child.parent_id
+        WHERE parent.depth < 10
+      )
+      SELECT id, name, parent_id, depth
+      FROM category_tree
+      ORDER BY depth, id;
+    explanation:
+      - lines: [1, 1]
+        clause: WITH RECURSIVE category_tree AS (…)
+        text: Kata RECURSIVE wajib ditulis agar CTE boleh merujuk dirinya sendiri. PostgreSQL dan MySQL mengharuskannya, SQLite memperbolehkannya.
+      - lines: [2, 8]
+        clause: 'Bagian dasar: WHERE c.parent_id IS NULL'
+        text: Titik awal penelusuran, yaitu kategori yang tidak punya induk. Bagian ini dijalankan sekali dan kedalamannya ditandai 0.
+      - lines: [9, 9]
+        clause: UNION ALL
+        text: Penghubung wajib antara bagian dasar dan bagian rekursif. Pakai UNION ALL, bukan UNION, karena UNION harus membandingkan semua baris di setiap putaran sehingga jauh lebih lambat.
+      - lines: [10, 16]
+        clause: JOIN category_tree parent ON parent.id = child.parent_id
+        text: Bagian rekursif merujuk nama CTE-nya sendiri. Setiap putaran mengambil anak dari baris yang baru ditemukan pada putaran sebelumnya, dan berhenti ketika tidak ada baris baru lagi.
+      - lines: [14, 14]
+        clause: parent.depth + 1
+        text: Kedalaman diwarisi dari induk lalu ditambah satu, jadi setiap tingkat punya penandanya sendiri.
+      - lines: [17, 17]
+        clause: WHERE parent.depth < 10
+        text: Pembatas keamanan. Bila data mengandung siklus, misalnya A menjadi induk B dan B menjadi induk A, tanpa batas ini query akan berjalan tanpa henti.
+      - lines: [19, 21]
+        clause: SELECT … FROM category_tree ORDER BY depth, id
+        text: Query utama membaca CTE seperti tabel biasa. Mengurutkan berdasarkan depth membuat hasilnya terbaca per tingkat.
+sample:
+  description: Minuman adalah induk tanpa parent_id, sedangkan Kopi dan Teh ditemukan pada putaran rekursif pertama sehingga kedalamannya 1.
+  input:
+    - caption: categories
+      columns: [id, name, parent_id]
+      rows:
+        - [1, Minuman, null]
+        - [2, Kopi, 1]
+        - [3, Teh, 1]
+  output:
+    caption: Hasil
+    columns: [id, name, parent_id, depth]
+    rows:
+      - [1, Minuman, null, 0]
+      - [2, Kopi, 1, 1]
+      - [3, Teh, 1, 1]
+notes:
+  - type: warning
+    title: Selalu batasi kedalaman
+    text: Tabel hierarki yang mengandung siklus akan membuat rekursi berjalan tanpa henti. PostgreSQL dan SQLite akan terus berjalan sampai memori habis, sedangkan MySQL berhenti di batas cte_max_recursion_depth (bawaannya 1000) dengan pesan error. Syarat depth seperti di contoh adalah pengaman paling sederhana.
+  - type: tip
+    title: Menelusuri ke atas, bukan ke bawah
+    text: Untuk mencari semua induk dari satu kategori, tukar arah penggabungannya menjadi JOIN category_tree child ON child.parent_id = parent.id dan mulai dari kategori yang dicari. Polanya sama, hanya arahnya terbalik.
+  - type: tip
+    title: Menambahkan kolom jalur
+    text: Kolom berisi jalur seperti "Minuman > Kopi" sangat membantu untuk pengurutan pohon, tetapi operator penggabung teksnya berbeda antar database. Lihat contoh menggabungkan teks untuk sintaks yang tepat di tiap dialek.
+  - type: info
+    text: Jumlah dan tipe kolom pada bagian dasar dan bagian rekursif harus sama persis. Bila tidak, database menolak query dengan pesan tipe kolom tidak cocok.

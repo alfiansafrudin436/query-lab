@@ -1,0 +1,81 @@
+title: Bandingkan dengan baris sebelumnya pakai LAG
+summary: Tampilkan nilai pesanan sebelumnya dari customer yang sama di baris yang sama, lalu hitung selisihnya.
+whenToUse: Saat butuh membandingkan satu baris dengan baris sebelumnya, misalnya pertumbuhan penjualan bulan ini dibanding bulan lalu.
+difficulty: intermediate
+tags: [lag, lead, window function, partition by, selisih, pertumbuhan]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.25'
+related: [running-total, rank-dense-rank, cte-staged]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH order_value AS (
+        SELECT
+          o.id,
+          o.customer_id,
+          o.ordered_at,
+          SUM(oi.quantity * oi.unit_price) AS nilai
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        GROUP BY o.id, o.customer_id, o.ordered_at
+      )
+      SELECT
+        ov.id,
+        ov.customer_id,
+        ov.nilai,
+        LAG(ov.nilai) OVER (PARTITION BY ov.customer_id ORDER BY ov.ordered_at) AS nilai_sebelumnya,
+        ov.nilai - LAG(ov.nilai) OVER (PARTITION BY ov.customer_id ORDER BY ov.ordered_at) AS selisih
+      FROM order_value ov
+      ORDER BY ov.customer_id, ov.ordered_at;
+    explanation:
+      - lines: [1, 10]
+        clause: WITH order_value AS (…)
+        text: Siapkan satu baris per pesanan beserta nilainya lebih dulu. LAG butuh baris yang sudah rapi, karena ia bekerja pada hasil, bukan pada tabel asli.
+      - lines: [15, 15]
+        clause: LAG(ov.nilai) OVER (…)
+        text: LAG mengambil nilai dari baris sebelumnya dan menaruhnya di baris saat ini. Dengan begitu, dua baris bisa dibandingkan tanpa perlu men-JOIN tabel ke dirinya sendiri.
+      - lines: [15, 15]
+        clause: PARTITION BY ov.customer_id
+        text: Penelusuran di-reset untuk setiap customer, jadi pesanan pertama seorang customer tidak pernah dibandingkan dengan pesanan customer lain.
+      - lines: [15, 15]
+        clause: ORDER BY ov.ordered_at
+        text: Menentukan arti dari kata "sebelumnya". ORDER BY di dalam OVER (…) wajib ada untuk LAG, karena tanpa urutan, baris sebelumnya tidak punya makna.
+      - lines: [16, 16]
+        clause: ov.nilai - LAG(ov.nilai) OVER (…)
+        text: Selisih dihitung langsung di SELECT. Hasilnya NULL di baris pertama tiap customer, karena tidak ada pembanding.
+      - lines: [17, 18]
+        clause: ORDER BY ov.customer_id, ov.ordered_at
+        text: Urutan tampilan dibuat sama dengan urutan di dalam window agar perbandingannya mudah diikuti.
+sample:
+  description: Pesanan pertama tiap customer selalu bernilai NULL karena belum ada pembandingnya. Pesanan kedua Rina turun 133.000 dari pesanan pertamanya, sedangkan Dimas hanya punya satu pesanan.
+  input:
+    - caption: order_items
+      columns: [order_id, product_id, quantity, unit_price]
+      rows:
+        - [1, 101, 2, 79000]
+        - [1, 102, 1, 25000]
+        - [2, 103, 3, 62000]
+        - [3, 102, 2, 25000]
+  output:
+    caption: Hasil
+    columns: [id, customer_id, nilai, nilai_sebelumnya, selisih]
+    rows:
+      - [1, 1, 183000, null, null]
+      - [3, 1, 50000, 183000, -133000]
+      - [2, 2, 186000, null, null]
+notes:
+  - type: tip
+    title: Isi nilai NULL di baris pertama
+    text: 'LAG menerima argumen ketiga sebagai nilai bawaan: LAG(ov.nilai, 1, 0) menghasilkan 0, bukan NULL, pada baris pertama tiap partisi. Argumen kedua adalah jumlah baris yang dilangkahi ke belakang.'
+  - type: tip
+    title: LEAD untuk arah sebaliknya
+    text: LEAD bekerja identik tetapi mengambil baris sesudahnya. Keduanya sering dipakai bersama, misalnya untuk menghitung jarak waktu antara dua pesanan berurutan.
+  - type: warning
+    title: Baris yang tidak ada tidak bisa dibandingkan
+    text: LAG membandingkan dengan baris sebelumnya yang benar-benar ada, bukan dengan periode sebelumnya. Bila sebuah bulan tidak punya transaksi sama sekali, bulan itu tidak ada barisnya, sehingga LAG akan melompati bulan kosong tersebut tanpa peringatan. Untuk analisis per periode, hasilkan dulu deret tanggal lengkap lalu LEFT JOIN data ke deret itu.
+  - type: warning
+    text: Hindari menghitung persentase pertumbuhan dengan membagi langsung oleh nilai sebelumnya. Bila nilainya nol atau NULL, hasilnya error atau NULL. Bungkus pembaginya dengan NULLIF(…, 0).

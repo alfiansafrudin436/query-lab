@@ -1,0 +1,78 @@
+title: Gabungkan beberapa kolom teks jadi satu
+summary: Rangkai nama dan kota customer menjadi satu kolom label siap tampil.
+whenToUse: Saat butuh satu kolom gabungan untuk ditampilkan atau diekspor, misalnya label "Nama (Kota)" di daftar pilihan.
+difficulty: beginner
+tags: [concat, gabung teks, string, operator pipe, label]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [like-search, string-agg, null-handling]
+variants:
+  - dialects: [postgresql, sqlite]
+    note: Operator || adalah penggabung teks standar SQL, dan inilah cara yang berlaku di PostgreSQL maupun SQLite.
+    code: |
+      SELECT
+        c.id,
+        c.name || ' (' || c.city || ')' AS label,
+        c.email
+      FROM customers c
+      ORDER BY c.id;
+    explanation:
+      - lines: [3, 3]
+        clause: c.name || ' (' || c.city || ')'
+        text: Operator || menyambung teks dari kiri ke kanan. Teks tetap seperti tanda kurung ditulis sebagai literal di antara kolomnya.
+      - lines: [3, 3]
+        clause: AS label
+        text: Kolom hasil penggabungan wajib diberi alias, karena tanpa itu nama kolomnya ditentukan database dan sulit dibaca dari sisi aplikasi.
+      - lines: [5, 6]
+        clause: FROM customers c ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+  - dialects: [mysql]
+    note: Di MySQL, || berarti OR logis, bukan penggabung teks, jadi wajib memakai fungsi CONCAT.
+    code: |
+      SELECT
+        c.id,
+        CONCAT(c.name, ' (', c.city, ')') AS label,
+        c.email
+      FROM customers c
+      ORDER BY c.id;
+    explanation:
+      - lines: [3, 3]
+        clause: CONCAT(c.name, ' (', c.city, ')')
+        text: CONCAT menerima argumen sebanyak apa pun dan menyambungnya berurutan. Teks tetap ditulis sebagai argumen tersendiri.
+      - lines: [3, 3]
+        clause: AS label
+        text: Kolom hasil penggabungan wajib diberi alias, karena tanpa itu nama kolomnya ditentukan database dan sulit dibaca dari sisi aplikasi.
+      - lines: [5, 6]
+        clause: FROM customers c ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+sample:
+  description: Kolom name dan city digabung menjadi satu kolom label, sementara kolom aslinya tidak berubah.
+  input:
+    - caption: customers
+      columns: [id, name, city, email]
+      rows:
+        - [1, Rina Wijaya, Bandung, rina@example.com]
+        - [2, Dimas Pratama, Surabaya, dimas@example.com]
+        - [3, Sari Lestari, Yogyakarta, sari@example.com]
+        - [4, Rina W., Bandung, rina@example.com]
+  output:
+    caption: Hasil
+    columns: [id, label, email]
+    rows:
+      - [1, Rina Wijaya (Bandung), rina@example.com]
+      - [2, Dimas Pratama (Surabaya), dimas@example.com]
+      - [3, Sari Lestari (Yogyakarta), sari@example.com]
+      - [4, Rina W. (Bandung), rina@example.com]
+notes:
+  - type: warning
+    title: Satu NULL merusak seluruh hasil
+    text: Di PostgreSQL, MySQL, dan SQLite, menggabung teks dengan || menghasilkan NULL bila salah satu bagiannya NULL. Karena city boleh kosong di skema contoh, label untuk customer tanpa kota akan ikut kosong. Bungkus bagian yang boleh NULL dengan COALESCE(c.city, '-').
+  - type: info
+    title: CONCAT di MySQL lebih pemaaf
+    text: Berbeda dari operator ||, fungsi CONCAT di MySQL tetap menghasilkan NULL bila ada argumen NULL, tetapi CONCAT_WS mengabaikan NULL dan hanya melewati pemisahnya. PostgreSQL juga punya CONCAT dan CONCAT_WS dengan perilaku serupa.
+  - type: tip
+    title: SQLite versi baru juga punya CONCAT
+    text: Fungsi CONCAT baru ditambahkan di SQLite 3.44 (2023). Operator || dipakai di sini karena berlaku di semua versi SQLite sekaligus di PostgreSQL.
+  - type: warning
+    text: Hindari menyimpan hasil gabungan ini sebagai kolom tersendiri di tabel, karena nilainya akan basi ketika kolom asalnya berubah. Gabungkan saat query, atau pakai generated column bila memang perlu disimpan.

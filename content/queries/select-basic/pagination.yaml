@@ -5,8 +5,8 @@ difficulty: beginner
 tags: [limit, offset, pagination, paging, halaman]
 popularity: 8
 createdAt: '2026-08-02'
-updatedAt: '2026-10-12'
-related: [top-n-per-group]
+updatedAt: '2026-10-13'
+related: [top-n-per-group, where-filter]
 variants:
   - dialects: [postgresql, mysql, sqlite]
     code: |

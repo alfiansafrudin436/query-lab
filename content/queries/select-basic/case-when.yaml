@@ -1,0 +1,68 @@
+title: Beri label baris dengan CASE WHEN
+summary: Ubah angka stok menjadi label yang mudah dibaca seperti "stok rendah" atau "aman".
+whenToUse: Saat ingin mengelompokkan nilai menjadi kategori di dalam query, misalnya mengubah angka stok menjadi status, atau nilai menjadi huruf mutu.
+difficulty: beginner
+tags: [case, when, then, else, label, kondisi, if]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [null-handling, conditional-aggregate, where-filter]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        p.name,
+        p.stock,
+        CASE
+          WHEN p.stock = 0 THEN 'habis'
+          WHEN p.stock < 15 THEN 'stok rendah'
+          ELSE 'aman'
+        END AS status_stok
+      FROM products p
+      ORDER BY p.stock;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT p.name, p.stock
+        text: Tampilkan angka aslinya agar label hasil CASE bisa dibandingkan.
+      - lines: [4, 4]
+        clause: CASE
+        text: Awal percabangan. Bentuk ini menguji sebuah kondisi di setiap WHEN, jadi bisa memakai operator apa pun, bukan hanya perbandingan sama dengan.
+      - lines: [5, 6]
+        clause: WHEN … THEN …
+        text: Kondisi diperiksa berurutan dari atas, dan yang pertama cocok langsung dipakai. Karena itu syarat paling khusus harus ditulis lebih dulu.
+      - lines: [7, 7]
+        clause: ELSE 'aman'
+        text: Nilai cadangan bila tidak ada WHEN yang cocok. Tanpa ELSE, hasilnya NULL.
+      - lines: [8, 8]
+        clause: END AS status_stok
+        text: CASE wajib ditutup dengan END. Beri alias agar nama kolom hasilnya jelas.
+      - lines: [9, 10]
+        clause: FROM products p ORDER BY p.stock
+        text: Urutkan dari stok paling sedikit agar produk yang perlu diperhatikan muncul di atas.
+sample:
+  description: Batas 15 membuat Kopi Arabika dengan stok 12 masuk kategori stok rendah, sementara dua produk lain lolos ke ELSE.
+  input:
+    - caption: products
+      columns: [id, name, stock]
+      rows:
+        - [101, Kopi Arabika 250g, 12]
+        - [102, Teh Melati 100g, 30]
+        - [103, Kopi Robusta 250g, 20]
+  output:
+    caption: Hasil
+    columns: [name, stock, status_stok]
+    rows:
+      - [Kopi Arabika 250g, 12, stok rendah]
+      - [Kopi Robusta 250g, 20, aman]
+      - [Teh Melati 100g, 30, aman]
+notes:
+  - type: warning
+    title: Urutan WHEN menentukan hasil
+    text: Bila WHEN p.stock < 15 ditulis sebelum WHEN p.stock = 0, produk yang stoknya nol akan ikut berlabel "stok rendah" karena nol juga lebih kecil dari 15. Kondisi pertama yang cocok selalu menang.
+  - type: info
+    title: Dua bentuk CASE
+    text: "Selain bentuk di contoh, ada bentuk singkat CASE p.status WHEN 'paid' THEN … END yang hanya bisa membandingkan kesamaan nilai. Bentuk panjang lebih fleksibel karena menerima kondisi apa pun."
+  - type: tip
+    text: Alias kolom hasil CASE tidak bisa dipakai di WHERE, karena WHERE diproses sebelum SELECT. Gunakan subquery atau CTE bila ingin menyaring berdasarkan labelnya, atau ulangi kondisinya di WHERE.
+  - type: tip
+    text: CASE juga bisa dipakai di dalam fungsi agregat untuk menghitung bersyarat, dan di dalam ORDER BY untuk membuat urutan khusus yang tidak alfabetis.

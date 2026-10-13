@@ -5,8 +5,8 @@ difficulty: advanced
 tags: [duplikat, delete, dedupe, bersih data]
 popularity: 8
 createdAt: '2026-10-05'
-updatedAt: '2026-10-12'
-related: [upsert, anti-join]
+updatedAt: '2026-10-13'
+related: [upsert, anti-join, subquery-in-exists]
 variants:
   - dialects: [postgresql]
     code: |

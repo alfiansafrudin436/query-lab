@@ -1,0 +1,93 @@
+title: Agregasi bersyarat dengan SUM CASE dan FILTER
+summary: Hitung pesanan dibayar dan pesanan pending sebagai kolom terpisah dalam satu kali baca tabel.
+whenToUse: Saat butuh beberapa angka dengan syarat berbeda dalam satu baris hasil, misalnya jumlah pesanan per status untuk setiap customer.
+difficulty: intermediate
+tags: [sum case, filter, agregasi bersyarat, pivot, count case]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [case-when, group-having, aggregate-functions]
+variants:
+  - dialects: [postgresql]
+    note: Klausa FILTER adalah sintaks standar SQL dan lebih mudah dibaca daripada SUM CASE.
+    code: |
+      SELECT
+        c.name,
+        COUNT(*) AS total_pesanan,
+        COUNT(*) FILTER (WHERE o.status = 'paid') AS pesanan_dibayar,
+        COUNT(*) FILTER (WHERE o.status = 'pending') AS pesanan_pending
+      FROM customers c
+      JOIN orders o ON o.customer_id = c.id
+      GROUP BY c.id, c.name
+      ORDER BY total_pesanan DESC, c.name;
+    explanation:
+      - lines: [3, 3]
+        clause: COUNT(*) AS total_pesanan
+        text: Tanpa FILTER, semua baris dalam kelompok dihitung.
+      - lines: [4, 5]
+        clause: COUNT(*) FILTER (WHERE …)
+        text: FILTER membatasi baris yang masuk ke fungsi agregat itu saja, tanpa memengaruhi kolom lain. Jadi tiga angka dengan syarat berbeda bisa dihitung sekaligus.
+      - lines: [6, 7]
+        clause: JOIN orders o ON o.customer_id = c.id
+        text: INNER JOIN membuat customer yang belum pernah memesan tidak muncul. Ganti ke LEFT JOIN bila mereka perlu tampil dengan angka nol.
+      - lines: [8, 8]
+        clause: GROUP BY c.id, c.name
+        text: Kelompokkan per customer. c.id disertakan agar dua customer bernama sama tidak tergabung menjadi satu baris.
+      - lines: [9, 9]
+        clause: ORDER BY total_pesanan DESC, c.name
+        text: Urutkan dari yang paling banyak memesan. Alias kolom boleh dipakai di ORDER BY.
+  - dialects: [mysql, sqlite]
+    note: MySQL tidak mendukung FILTER, jadi syaratnya dipindahkan ke dalam CASE.
+    code: |
+      SELECT
+        c.name,
+        COUNT(*) AS total_pesanan,
+        SUM(CASE WHEN o.status = 'paid' THEN 1 ELSE 0 END) AS pesanan_dibayar,
+        SUM(CASE WHEN o.status = 'pending' THEN 1 ELSE 0 END) AS pesanan_pending
+      FROM customers c
+      JOIN orders o ON o.customer_id = c.id
+      GROUP BY c.id, c.name
+      ORDER BY total_pesanan DESC, c.name;
+    explanation:
+      - lines: [3, 3]
+        clause: COUNT(*) AS total_pesanan
+        text: Tanpa syarat, semua baris dalam kelompok dihitung.
+      - lines: [4, 5]
+        clause: SUM(CASE WHEN … THEN 1 ELSE 0 END)
+        text: CASE mengubah setiap baris menjadi 1 bila syaratnya cocok dan 0 bila tidak, lalu SUM menjumlahkannya. Hasilnya sama dengan menghitung baris yang cocok.
+      - lines: [6, 7]
+        clause: JOIN orders o ON o.customer_id = c.id
+        text: INNER JOIN membuat customer yang belum pernah memesan tidak muncul. Ganti ke LEFT JOIN bila mereka perlu tampil dengan angka nol.
+      - lines: [8, 8]
+        clause: GROUP BY c.id, c.name
+        text: Kelompokkan per customer. c.id disertakan agar dua customer bernama sama tidak tergabung menjadi satu baris.
+      - lines: [9, 9]
+        clause: ORDER BY total_pesanan DESC, c.name
+        text: Urutkan dari yang paling banyak memesan. Alias kolom boleh dipakai di ORDER BY.
+sample:
+  description: Rina punya dua pesanan dengan status berbeda, sehingga tersebar ke dua kolom. Sari dan Rina W. tidak muncul karena belum pernah memesan.
+  input:
+    - caption: orders
+      columns: [id, customer_id, status]
+      rows:
+        - [1, 1, paid]
+        - [2, 2, paid]
+        - [3, 1, pending]
+  output:
+    caption: Hasil
+    columns: [name, total_pesanan, pesanan_dibayar, pesanan_pending]
+    rows:
+      - [Rina Wijaya, 2, 1, 1]
+      - [Dimas Pratama, 1, 1, 0]
+notes:
+  - type: warning
+    title: Pakai ELSE 0, bukan ELSE NULL
+    text: Pada SUM(CASE …), tanpa ELSE nilai bawaannya NULL. SUM memang mengabaikan NULL sehingga jumlahnya tetap benar, tetapi kelompok yang tidak punya baris cocok akan menghasilkan NULL, bukan 0.
+  - type: warning
+    title: COUNT(CASE …) butuh ELSE NULL
+    text: 'Kebalikannya berlaku untuk COUNT: COUNT(CASE WHEN … THEN 1 ELSE 0 END) selalu menghitung semua baris, karena 0 bukan NULL. Bila memakai COUNT, hilangkan ELSE-nya.'
+  - type: tip
+    title: FILTER juga ada di SQLite
+    text: SQLite mendukung FILTER sejak versi 3.30, jadi varian PostgreSQL sebenarnya jalan di SQLite modern. Bentuk SUM CASE dipakai di sini karena satu-satunya yang berjalan di ketiga database tanpa syarat versi.
+  - type: tip
+    text: Pola yang sama bisa dipakai untuk menjumlahkan nilai, bukan hanya menghitung baris, misalnya SUM(CASE WHEN o.status = 'paid' THEN oi.quantity * oi.unit_price ELSE 0 END) untuk pendapatan yang sudah terbayar.

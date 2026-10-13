@@ -5,8 +5,8 @@ difficulty: beginner
 tags: [interval, now, tanggal, rentang waktu]
 popularity: 6
 createdAt: '2026-09-22'
-updatedAt: '2026-10-12'
-related: [running-total]
+updatedAt: '2026-10-13'
+related: [running-total, date-range-filter, group-by-month]
 variants:
   - dialects: [postgresql]
     code: |

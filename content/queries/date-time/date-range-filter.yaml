@@ -1,0 +1,98 @@
+title: Filter rentang tanggal tanpa salah batas
+summary: Ambil pesanan 7 hari kalender terakhir dengan rentang setengah terbuka, agar transaksi hari ini tidak terlewat.
+whenToUse: Saat memfilter kolom bertipe timestamp berdasarkan tanggal, dan kamu ingin memastikan tidak ada transaksi di batas rentang yang terlewat.
+difficulty: beginner
+tags: [tanggal, rentang, between, current_date, curdate, setengah terbuka]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [last-7-days, group-by-month, where-filter]
+variants:
+  - dialects: [postgresql]
+    code: |
+      SELECT o.id, o.status, o.ordered_at
+      FROM orders o
+      WHERE o.ordered_at >= CURRENT_DATE - INTERVAL '7 days'
+        AND o.ordered_at < CURRENT_DATE + INTERVAL '1 day'
+      ORDER BY o.ordered_at;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT o.id, o.status, o.ordered_at FROM orders o
+        text: Ambil pesanan beserta waktunya agar batas rentang bisa diperiksa.
+      - lines: [3, 3]
+        clause: "o.ordered_at >= CURRENT_DATE - INTERVAL '7 days'"
+        text: CURRENT_DATE adalah hari ini pukul 00.00, bukan waktu sekarang. Jadi batas awalnya adalah awal hari, 7 hari yang lalu.
+      - lines: [4, 4]
+        clause: "o.ordered_at < CURRENT_DATE + INTERVAL '1 day'"
+        text: Batas akhir memakai tanda lebih kecil, bukan lebih kecil sama dengan, dan menunjuk awal hari besok. Dengan begitu seluruh transaksi hari ini ikut terambil, berapa pun jamnya.
+      - lines: [5, 5]
+        clause: ORDER BY o.ordered_at
+        text: Urutkan dari yang paling lama agar rentangnya terlihat jelas.
+  - dialects: [mysql]
+    code: |
+      SELECT o.id, o.status, o.ordered_at
+      FROM orders o
+      WHERE o.ordered_at >= CURDATE() - INTERVAL 7 DAY
+        AND o.ordered_at < CURDATE() + INTERVAL 1 DAY
+      ORDER BY o.ordered_at;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT o.id, o.status, o.ordered_at FROM orders o
+        text: Ambil pesanan beserta waktunya agar batas rentang bisa diperiksa.
+      - lines: [3, 3]
+        clause: CURDATE() - INTERVAL 7 DAY
+        text: CURDATE() adalah hari ini pukul 00.00. Di MySQL, angka dan satuan INTERVAL ditulis tanpa tanda kutip, dan satuannya selalu bentuk tunggal (DAY, bukan DAYS).
+      - lines: [4, 4]
+        clause: o.ordered_at < CURDATE() + INTERVAL 1 DAY
+        text: Batas akhir menunjuk awal hari besok dengan tanda lebih kecil, sehingga seluruh transaksi hari ini ikut terambil.
+      - lines: [5, 5]
+        clause: ORDER BY o.ordered_at
+        text: Urutkan dari yang paling lama agar rentangnya terlihat jelas.
+  - dialects: [sqlite]
+    note: SQLite tidak punya tipe tanggal khusus. Fungsi date() menghasilkan teks 'YYYY-MM-DD' yang bisa dibandingkan langsung dengan kolom timestamp berformat sama.
+    code: |
+      SELECT o.id, o.status, o.ordered_at
+      FROM orders o
+      WHERE o.ordered_at >= date('now', '-7 days')
+        AND o.ordered_at < date('now', '+1 day')
+      ORDER BY o.ordered_at;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT o.id, o.status, o.ordered_at FROM orders o
+        text: Ambil pesanan beserta waktunya agar batas rentang bisa diperiksa.
+      - lines: [3, 3]
+        clause: "date('now', '-7 days')"
+        text: Berbeda dari datetime(), fungsi date() memotong jamnya sehingga menghasilkan awal hari. Pergeseran waktu ditulis sebagai argumen teks tambahan.
+      - lines: [4, 4]
+        clause: "o.ordered_at < date('now', '+1 day')"
+        text: Perbandingannya berupa perbandingan teks, dan itu tetap benar karena format 'YYYY-MM-DD' urutan alfabetisnya sama dengan urutan waktunya.
+      - lines: [5, 5]
+        clause: ORDER BY o.ordered_at
+        text: Urutkan dari yang paling lama agar rentangnya terlihat jelas.
+sample:
+  description: 'Tanggal di data contoh relatif terhadap hari kamu menjalankan seed: H-5 berarti 5 hari sebelumnya. Pesanan 1 (H-10) berada di luar jendela 7 hari, jadi tidak ikut terambil.'
+  input:
+    - caption: orders
+      columns: [id, status, ordered_at]
+      rows:
+        - [1, paid, 'H-10 09:15:00']
+        - [2, paid, 'H-5 14:02:00']
+        - [3, pending, 'H-1 19:40:00']
+  output:
+    caption: Hasil
+    columns: [id, status, ordered_at]
+    rows:
+      - [2, paid, 'H-5 14:02:00']
+      - [3, pending, 'H-1 19:40:00']
+notes:
+  - type: warning
+    title: Inilah sebabnya BETWEEN tidak dipakai
+    text: Pada kolom timestamp, BETWEEN awal AND akhir mencakup kedua batas, sehingga batas akhirnya berarti tepat pukul 00.00. Transaksi pada hari terakhir setelah pukul 00.00.00 akan hilang dari laporan tanpa pesan error apa pun. Rentang setengah terbuka (>= awal, < akhir berikutnya) menghindarkan hal ini sekaligus bebas urusan detik dan milidetik.
+  - type: warning
+    title: Jangan bungkus kolomnya dengan fungsi
+    text: Menulis WHERE DATE(o.ordered_at) >= … memaksa database menghitung fungsi itu di setiap baris, sehingga index pada ordered_at tidak terpakai. Biarkan kolomnya bersih di satu sisi perbandingan dan letakkan semua perhitungan di sisi lainnya.
+  - type: tip
+    title: Zona waktu
+    text: 'CURRENT_DATE dan CURDATE() mengikuti zona waktu sesi database, sedangkan date(''now'') di SQLite selalu UTC. Bila server dan pengguna berbeda zona waktu, "hari ini" bisa bergeser satu hari.'
+  - type: info
+    text: Untuk rentang tanggal tetap yang ditentukan user, polanya sama, misalnya WHERE o.ordered_at >= '2026-10-01' AND o.ordered_at < '2026-11-01' untuk seluruh bulan Oktober.

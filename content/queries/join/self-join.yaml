@@ -5,8 +5,8 @@ difficulty: intermediate
 tags: [self join, hierarki, left join]
 popularity: 4
 createdAt: '2026-09-10'
-updatedAt: '2026-10-12'
-related: [left-join, inner-join]
+updatedAt: '2026-10-13'
+related: [left-join, inner-join, recursive-cte-hierarchy]
 variants:
   - dialects: [postgresql, mysql, sqlite]
     code: |

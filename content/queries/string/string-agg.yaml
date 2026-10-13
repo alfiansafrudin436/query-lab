@@ -1,0 +1,115 @@
+title: Gabungkan banyak baris jadi satu teks
+summary: Ringkas daftar produk tiap kategori menjadi satu sel berisi nama-nama yang dipisah koma.
+whenToUse: Saat ingin menampilkan daftar singkat tanpa query terpisah, misalnya kolom "produk" berisi semua produk di kategori tersebut.
+difficulty: intermediate
+tags: [string_agg, group_concat, agregasi teks, gabung baris, daftar]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [concat-string, group-having, aggregate-functions]
+variants:
+  - dialects: [postgresql]
+    note: STRING_AGG menerima klausa ORDER BY di dalam tanda kurungnya, jadi urutan teks hasilnya bisa dipastikan.
+    code: |
+      SELECT
+        cat.name AS kategori,
+        COUNT(*) AS jumlah_produk,
+        STRING_AGG(p.name, ', ' ORDER BY p.name) AS daftar_produk
+      FROM categories cat
+      JOIN products p ON p.category_id = cat.id
+      GROUP BY cat.id, cat.name
+      ORDER BY cat.name;
+    explanation:
+      - lines: [3, 3]
+        clause: COUNT(*) AS jumlah_produk
+        text: Fungsi agregat biasa tetap bisa dipakai bersamaan, karena keduanya bekerja pada kelompok yang sama.
+      - lines: [4, 4]
+        clause: STRING_AGG(p.name, ', ')
+        text: Seperti SUM menjumlahkan angka, STRING_AGG menyambung teks dari seluruh baris dalam satu kelompok. Argumen kedua adalah pemisah antar nilai.
+      - lines: [4, 4]
+        clause: ORDER BY p.name
+        text: Ditulis di dalam tanda kurung fungsi, bukan di akhir query. Tanpa ini, urutan nama di dalam teks tidak dijamin.
+      - lines: [5, 6]
+        clause: JOIN products p ON p.category_id = cat.id
+        text: Kategori tanpa produk tidak muncul karena INNER JOIN. Di skema contoh, kategori Minuman tersaring keluar.
+      - lines: [7, 8]
+        clause: GROUP BY cat.id, cat.name
+        text: Satu baris hasil per kategori. Inilah yang membuat banyak baris produk mengerut menjadi satu sel.
+  - dialects: [mysql]
+    note: GROUP_CONCAT di MySQL memakai kata kunci SEPARATOR, dan pemisah bawaannya koma tanpa spasi.
+    code: |
+      SELECT
+        cat.name AS kategori,
+        COUNT(*) AS jumlah_produk,
+        GROUP_CONCAT(p.name ORDER BY p.name SEPARATOR ', ') AS daftar_produk
+      FROM categories cat
+      JOIN products p ON p.category_id = cat.id
+      GROUP BY cat.id, cat.name
+      ORDER BY cat.name;
+    explanation:
+      - lines: [3, 3]
+        clause: COUNT(*) AS jumlah_produk
+        text: Fungsi agregat biasa tetap bisa dipakai bersamaan, karena keduanya bekerja pada kelompok yang sama.
+      - lines: [4, 4]
+        clause: GROUP_CONCAT(p.name …)
+        text: Menyambung teks dari seluruh baris dalam satu kelompok. Perhatikan bahwa pemisahnya bukan argumen, melainkan ditulis setelah kata kunci SEPARATOR.
+      - lines: [4, 4]
+        clause: ORDER BY p.name
+        text: Ditulis di dalam tanda kurung fungsi, sebelum SEPARATOR. Tanpa ini, urutan nama di dalam teks tidak dijamin.
+      - lines: [5, 6]
+        clause: JOIN products p ON p.category_id = cat.id
+        text: Kategori tanpa produk tidak muncul karena INNER JOIN. Di skema contoh, kategori Minuman tersaring keluar.
+      - lines: [7, 8]
+        clause: GROUP BY cat.id, cat.name
+        text: Satu baris hasil per kategori. Inilah yang membuat banyak baris produk mengerut menjadi satu sel.
+  - dialects: [sqlite]
+    note: GROUP_CONCAT di SQLite menerima pemisah sebagai argumen kedua, tetapi tidak menerima ORDER BY di dalamnya.
+    code: |
+      SELECT
+        cat.name AS kategori,
+        COUNT(*) AS jumlah_produk,
+        GROUP_CONCAT(p.name, ', ') AS daftar_produk
+      FROM categories cat
+      JOIN products p ON p.category_id = cat.id
+      GROUP BY cat.id, cat.name
+      ORDER BY cat.name;
+    explanation:
+      - lines: [3, 3]
+        clause: COUNT(*) AS jumlah_produk
+        text: Fungsi agregat biasa tetap bisa dipakai bersamaan, karena keduanya bekerja pada kelompok yang sama.
+      - lines: [4, 4]
+        clause: GROUP_CONCAT(p.name, ', ')
+        text: Menyambung teks dari seluruh baris dalam satu kelompok, dengan pemisah sebagai argumen kedua. Urutannya mengikuti urutan baris yang dibaca database, jadi tidak dijamin.
+      - lines: [5, 6]
+        clause: JOIN products p ON p.category_id = cat.id
+        text: Kategori tanpa produk tidak muncul karena INNER JOIN. Di skema contoh, kategori Minuman tersaring keluar.
+      - lines: [7, 8]
+        clause: GROUP BY cat.id, cat.name
+        text: Satu baris hasil per kategori. Inilah yang membuat banyak baris produk mengerut menjadi satu sel.
+sample:
+  description: Dua produk kategori Kopi mengerut menjadi satu sel. Kategori Minuman tidak muncul karena hanya menjadi induk dan tidak punya produk langsung.
+  input:
+    - caption: products
+      columns: [id, category_id, name]
+      rows:
+        - [101, 2, Kopi Arabika 250g]
+        - [102, 3, Teh Melati 100g]
+        - [103, 2, Kopi Robusta 250g]
+  output:
+    caption: Hasil
+    columns: [kategori, jumlah_produk, daftar_produk]
+    rows:
+      - [Kopi, 2, 'Kopi Arabika 250g, Kopi Robusta 250g']
+      - [Teh, 1, Teh Melati 100g]
+notes:
+  - type: warning
+    title: Urutan di SQLite tidak dijamin
+    text: GROUP_CONCAT versi SQLite tidak menerima ORDER BY di dalam fungsi, sehingga urutan nama bisa berubah antar percobaan. Sebagai jalan keluar, urutkan dulu di subquery, atau pakai versi SQLite 3.44+ yang menyediakan STRING_AGG sebagai alias dengan dukungan ORDER BY.
+  - type: warning
+    title: MySQL memotong hasil secara diam-diam
+    text: GROUP_CONCAT di MySQL dibatasi group_concat_max_len, yang bawaannya hanya 1024 karakter. Hasil yang lebih panjang dipotong tanpa pesan error, jadi daftar panjang bisa hilang sebagian. Naikkan nilainya lewat SET SESSION group_concat_max_len bila diperlukan.
+  - type: tip
+    title: Membuang nilai kembar
+    text: Ketiga database mendukung DISTINCT di dalam fungsinya, misalnya STRING_AGG(DISTINCT p.name, ', ') atau GROUP_CONCAT(DISTINCT p.name). Berguna bila hasil JOIN memuat baris berulang.
+  - type: info
+    text: Pilih pemisah yang tidak mungkin ada di dalam datanya. Bila nama produk sendiri memuat koma, hasil gabungannya tidak bisa dipecah kembali dengan benar.

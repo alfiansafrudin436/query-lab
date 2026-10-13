@@ -1,0 +1,115 @@
+title: UPDATE memakai data dari tabel lain
+summary: Kurangi stok produk sesuai jumlah yang sudah terjual, dihitung langsung dari tabel order_items.
+whenToUse: Saat nilai baru untuk sebuah kolom harus dihitung dari tabel lain, misalnya menyesuaikan stok, menyalin harga, atau memperbarui kolom ringkasan.
+difficulty: intermediate
+tags: [update join, update from, correlated subquery, stok, sinkronisasi]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [insert-select, upsert, conditional-aggregate]
+variants:
+  - dialects: [postgresql]
+    note: PostgreSQL memakai klausa FROM pada UPDATE, dan tabel yang diperbarui tidak boleh ditulis ulang di dalam FROM tersebut.
+    code: |
+      UPDATE products p
+      SET stock = p.stock - sold.total
+      FROM (
+        SELECT oi.product_id, SUM(oi.quantity) AS total
+        FROM order_items oi
+        GROUP BY oi.product_id
+      ) sold
+      WHERE sold.product_id = p.id;
+    explanation:
+      - lines: [1, 1]
+        clause: UPDATE products p
+        text: Tabel yang diperbarui, diberi alias agar mudah dirujuk di bawah.
+      - lines: [2, 2]
+        clause: SET stock = p.stock - sold.total
+        text: Nilai baru boleh dihitung dari nilai lamanya sendiri sekaligus dari kolom tabel lain. Nama kolom di sisi kiri SET ditulis tanpa alias.
+      - lines: [3, 7]
+        clause: FROM ( SELECT … GROUP BY … ) sold
+        text: Subquery meringkas total terjual per produk lebih dulu. Agregasi harus dilakukan di sini, karena SET tidak menerima fungsi agregat secara langsung.
+      - lines: [8, 8]
+        clause: WHERE sold.product_id = p.id
+        text: Syarat penghubung antara kedua tabel. Inilah baris paling penting, karena tanpanya setiap produk akan dipasangkan dengan semua baris ringkasan.
+  - dialects: [mysql]
+    note: MySQL memakai sintaks JOIN langsung pada UPDATE, dan klausa SET ditulis setelah JOIN selesai.
+    code: |
+      UPDATE products p
+      JOIN (
+        SELECT oi.product_id, SUM(oi.quantity) AS total
+        FROM order_items oi
+        GROUP BY oi.product_id
+      ) sold ON sold.product_id = p.id
+      SET p.stock = p.stock - sold.total;
+    explanation:
+      - lines: [1, 1]
+        clause: UPDATE products p
+        text: Tabel yang diperbarui, diberi alias agar mudah dirujuk di bawah.
+      - lines: [2, 6]
+        clause: JOIN ( SELECT … ) sold ON sold.product_id = p.id
+        text: Penggabungan ditulis sama seperti pada SELECT, lengkap dengan syarat ON. Subquery meringkas total terjual per produk lebih dulu.
+      - lines: [7, 7]
+        clause: SET p.stock = p.stock - sold.total
+        text: Berbeda dari PostgreSQL, SET ditulis paling akhir dan kolomnya boleh memakai alias tabel.
+  - dialects: [sqlite]
+    note: Bentuk ini memakai correlated subquery agar tetap jalan di semua versi SQLite. SQLite 3.33+ juga mendukung UPDATE … FROM seperti PostgreSQL.
+    code: |
+      UPDATE products
+      SET stock = stock - (
+        SELECT SUM(oi.quantity)
+        FROM order_items oi
+        WHERE oi.product_id = products.id
+      )
+      WHERE EXISTS (
+        SELECT 1
+        FROM order_items oi
+        WHERE oi.product_id = products.id
+      );
+    explanation:
+      - lines: [1, 1]
+        clause: UPDATE products
+        text: Tanpa alias, karena nama tabelnya perlu dirujuk utuh dari dalam subquery.
+      - lines: [2, 6]
+        clause: SET stock = stock - ( SELECT SUM(…) … )
+        text: Subquery dijalankan ulang untuk setiap baris dan merujuk products.id dari baris yang sedang diperbarui. Inilah yang disebut correlated subquery.
+      - lines: [7, 11]
+        clause: WHERE EXISTS ( … )
+        text: Pengaman yang wajib ada. Tanpanya, produk yang belum pernah terjual akan mendapat hasil subquery NULL, sehingga stoknya berubah menjadi NULL, bukan tetap seperti semula.
+sample:
+  description: Ketiga produk pernah terjual, jadi stoknya dikurangi sesuai total penjualan masing-masing. Teh Melati terjual di dua pesanan berbeda (1 + 2 unit), sehingga stoknya turun 3.
+  highlightNote: Sel yang disorot = nilai yang berubah
+  input:
+    - caption: Sebelum · products
+      columns: [id, name, stock]
+      rows:
+        - [101, Kopi Arabika 250g, 12]
+        - [102, Teh Melati 100g, 30]
+        - [103, Kopi Robusta 250g, 20]
+    - caption: order_items
+      columns: [order_id, product_id, quantity]
+      rows:
+        - [1, 101, 2]
+        - [1, 102, 1]
+        - [2, 103, 3]
+        - [3, 102, 2]
+  output:
+    caption: Sesudah · products
+    columns: [id, name, stock]
+    rows:
+      - [101, Kopi Arabika 250g, 10]
+      - [102, Teh Melati 100g, 27]
+      - [103, Kopi Robusta 250g, 17]
+    highlight: [[0, 2], [1, 2], [2, 2]]
+notes:
+  - type: warning
+    title: Periksa dengan SELECT sebelum menjalankan
+    text: Ubah dulu query ini menjadi SELECT dengan JOIN yang sama untuk melihat baris mana yang akan terkena dan berapa nilai barunya. UPDATE tidak bisa dibatalkan kecuali dijalankan di dalam transaksi yang belum di-COMMIT.
+  - type: warning
+    title: Tanpa WHERE, seluruh tabel terkena
+    text: Menghilangkan syarat penghubung membuat UPDATE mengenai semua baris, bukan hanya yang cocok. Di PostgreSQL, UPDATE … FROM tanpa WHERE menghasilkan perkalian silang, dan setiap baris diperbarui dengan salah satu pasangan yang dipilih sembarang, tanpa pesan error.
+  - type: tip
+    title: Satu baris sumber per baris tujuan
+    text: Bila subquery bisa menghasilkan lebih dari satu baris untuk satu produk, PostgreSQL dan MySQL diam-diam memakai salah satunya, sedangkan SQLite mengembalikan error. Karena itu datanya diringkas lebih dulu dengan GROUP BY.
+  - type: info
+    text: Operasi seperti pengurangan stok sebaiknya dijalankan di dalam transaksi bersama perubahan terkait lainnya, agar stok tidak pernah berkurang tanpa pesanannya ikut tercatat.

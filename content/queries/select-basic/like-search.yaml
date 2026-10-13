@@ -1,0 +1,71 @@
+title: Cari teks dengan LIKE dan ILIKE
+summary: Cari produk yang namanya memuat kata tertentu, tanpa peduli huruf besar atau kecil.
+whenToUse: Saat membuat kotak pencarian sederhana, misalnya mencari produk yang namanya memuat kata "kopi" meski user menulisnya huruf kecil.
+difficulty: beginner
+tags: [like, ilike, pencarian, search, wildcard, case-insensitive]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [where-filter, concat-string]
+variants:
+  - dialects: [postgresql]
+    note: PostgreSQL membedakan huruf besar dan kecil pada LIKE, jadi pakai ILIKE untuk pencarian yang mengabaikannya.
+    code: |
+      SELECT id, name
+      FROM products
+      WHERE name ILIKE '%kopi%'
+      ORDER BY name;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT id, name FROM products
+        text: Ambil kolom yang ingin ditampilkan di hasil pencarian.
+      - lines: [3, 3]
+        clause: WHERE name ILIKE '%kopi%'
+        text: ILIKE mencocokkan teks tanpa membedakan huruf besar dan kecil. Tanda % berarti "boleh ada teks apa pun", jadi kata kopi boleh berada di mana saja di dalam nama.
+      - lines: [4, 4]
+        clause: ORDER BY name
+        text: Urutkan hasil berdasarkan nama agar daftarnya mudah dibaca.
+  - dialects: [mysql, sqlite]
+    note: MySQL dan SQLite tidak punya ILIKE, tetapi LIKE di kedua database ini sudah mengabaikan huruf besar/kecil secara bawaan.
+    code: |
+      SELECT id, name
+      FROM products
+      WHERE name LIKE '%kopi%'
+      ORDER BY name;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT id, name FROM products
+        text: Ambil kolom yang ingin ditampilkan di hasil pencarian.
+      - lines: [3, 3]
+        clause: WHERE name LIKE '%kopi%'
+        text: Tanda % berarti "boleh ada teks apa pun", jadi kata kopi boleh berada di mana saja di dalam nama. Di MySQL dan SQLite pencocokannya sudah mengabaikan huruf besar/kecil.
+      - lines: [4, 4]
+        clause: ORDER BY name
+        text: Urutkan hasil berdasarkan nama agar daftarnya mudah dibaca.
+sample:
+  description: Kata kunci ditulis huruf kecil, tetapi tetap menemukan produk yang namanya berawalan huruf besar. Teh Melati tidak ikut karena namanya tidak memuat kata kopi.
+  input:
+    - caption: products
+      columns: [id, name]
+      rows:
+        - [101, Kopi Arabika 250g]
+        - [102, Teh Melati 100g]
+        - [103, Kopi Robusta 250g]
+  output:
+    caption: Hasil
+    columns: [id, name]
+    rows:
+      - [101, Kopi Arabika 250g]
+      - [103, Kopi Robusta 250g]
+notes:
+  - type: info
+    title: Dua tanda pengganti
+    text: "% cocok dengan nol karakter atau lebih, sedangkan _ cocok dengan tepat satu karakter. Jadi LIKE 'K_pi%' cocok dengan Kopi, tetapi tidak dengan Kpi."
+  - type: warning
+    title: Perilaku huruf besar/kecil tidak dijamin
+    text: Di MySQL, LIKE mengabaikan huruf besar/kecil karena collation bawaannya (misalnya utf8mb4_0900_ai_ci). Pada kolom dengan collation _bin atau _cs, pencocokannya kembali membedakan huruf. Di SQLite, LIKE hanya mengabaikan huruf besar/kecil untuk karakter ASCII.
+  - type: warning
+    title: Awalan % membuat index tidak terpakai
+    text: Pola '%kopi%' memaksa database memeriksa semua baris. Pola berawalan tetap seperti 'kopi%' masih bisa memakai index biasa. Untuk pencarian teks bebas di tabel besar, pertimbangkan full-text search atau index trigram (pg_trgm di PostgreSQL).
+  - type: tip
+    text: Bila kata kunci berasal dari input user, karakter % dan _ di dalamnya perlu di-escape, misalnya LIKE … ESCAPE '\'. Jika tidak, user yang mengetik % akan mendapatkan seluruh isi tabel.

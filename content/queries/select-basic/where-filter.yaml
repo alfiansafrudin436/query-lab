@@ -1,0 +1,59 @@
+title: Filter baris dengan WHERE, IN, dan BETWEEN
+summary: Gabungkan beberapa syarat dalam satu WHERE untuk menyaring produk sesuai harga, kategori, dan stok.
+whenToUse: Saat butuh menyaring baris dengan lebih dari satu syarat sekaligus, misalnya produk di rentang harga tertentu yang stoknya masih ada.
+difficulty: beginner
+tags: [where, and, or, in, between, filter, saring]
+popularity: 12
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [like-search, null-handling, pagination]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT id, name, price, stock
+      FROM products
+      WHERE price BETWEEN 25000 AND 80000
+        AND category_id IN (2, 3)
+        AND stock > 10
+      ORDER BY price DESC;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT id, name, price, stock FROM products
+        text: Pilih kolom yang ingin ditampilkan dari tabel products.
+      - lines: [3, 3]
+        clause: WHERE price BETWEEN 25000 AND 80000
+        text: BETWEEN mencakup kedua batas, jadi harga tepat 25000 dan 80000 ikut terpilih. Sama artinya dengan price >= 25000 AND price <= 80000.
+      - lines: [4, 4]
+        clause: AND category_id IN (2, 3)
+        text: IN adalah cara singkat menulis category_id = 2 OR category_id = 3. Lebih rapi saat daftar nilainya panjang.
+      - lines: [5, 5]
+        clause: AND stock > 10
+        text: Semua syarat yang disambung AND harus terpenuhi sekaligus agar baris ikut terpilih.
+      - lines: [6, 6]
+        clause: ORDER BY price DESC
+        text: Urutkan dari harga termahal ke termurah.
+sample:
+  description: Ketiga produk di data contoh memenuhi semua syarat, jadi yang terlihat di sini adalah efek pengurutannya.
+  input:
+    - caption: products
+      columns: [id, category_id, name, price, stock]
+      rows:
+        - [101, 2, Kopi Arabika 250g, 79000, 12]
+        - [102, 3, Teh Melati 100g, 25000, 30]
+        - [103, 2, Kopi Robusta 250g, 62000, 20]
+  output:
+    caption: Hasil
+    columns: [id, name, price, stock]
+    rows:
+      - [101, Kopi Arabika 250g, 79000, 12]
+      - [103, Kopi Robusta 250g, 62000, 20]
+      - [102, Teh Melati 100g, 25000, 30]
+notes:
+  - type: warning
+    title: Hati-hati mencampur AND dengan OR
+    text: AND dikerjakan lebih dulu daripada OR. Jadi a AND b OR c berarti (a AND b) OR c. Bila maksudmu a AND (b OR c), tulis tanda kurungnya secara eksplisit.
+  - type: warning
+    title: BETWEEN tidak cocok untuk kolom timestamp
+    text: Pada kolom tanggal berjam, BETWEEN '2026-01-01' AND '2026-01-31' akan melewatkan transaksi pada 31 Januari setelah pukul 00:00. Pakai rentang setengah terbuka seperti di contoh filter rentang tanggal.
+  - type: info
+    text: Nilai NULL tidak pernah cocok dengan operator =, IN, maupun BETWEEN. Gunakan IS NULL untuk memeriksanya.

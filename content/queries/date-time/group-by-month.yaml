@@ -1,0 +1,119 @@
+title: Kelompokkan pesanan per bulan
+summary: Ringkas penjualan menjadi satu baris per bulan untuk grafik tren bulanan.
+whenToUse: Saat membuat laporan atau grafik tren per periode, misalnya pendapatan bulanan sepanjang tahun.
+difficulty: intermediate
+tags: [group by, bulan, date_trunc, date_format, strftime, tren, laporan]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [date-range-filter, group-having, last-7-days]
+variants:
+  - dialects: [postgresql]
+    note: DATE_TRUNC mengembalikan timestamp di awal bulan, jadi hasilnya tetap bertipe tanggal dan bisa diurutkan maupun dihitung secara waktu.
+    code: |
+      SELECT
+        DATE_TRUNC('month', o.ordered_at) AS bulan,
+        COUNT(DISTINCT o.id) AS jumlah_pesanan,
+        SUM(oi.quantity * oi.unit_price) AS total
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      GROUP BY DATE_TRUNC('month', o.ordered_at)
+      ORDER BY bulan;
+    explanation:
+      - lines: [2, 2]
+        clause: "DATE_TRUNC('month', o.ordered_at)"
+        text: Potong bagian tanggal dan jam, sisakan awal bulannya. Semua pesanan di bulan yang sama jadi punya nilai identik sehingga bisa dikelompokkan.
+      - lines: [3, 3]
+        clause: COUNT(DISTINCT o.id)
+        text: DISTINCT wajib di sini. Karena tabel sudah di-JOIN ke order_items, satu pesanan berisi dua item akan muncul dua baris dan ikut terhitung dua kali.
+      - lines: [4, 4]
+        clause: SUM(oi.quantity * oi.unit_price)
+        text: Total pendapatan dihitung per item, jadi perkalian baris oleh JOIN justru dibutuhkan di sini.
+      - lines: [5, 6]
+        clause: JOIN order_items oi ON oi.order_id = o.id
+        text: Nilai transaksi tersimpan di order_items, sehingga kedua tabel perlu digabung.
+      - lines: [7, 7]
+        clause: GROUP BY DATE_TRUNC('month', o.ordered_at)
+        text: Ekspresi di GROUP BY ditulis ulang sama seperti di SELECT. PostgreSQL tidak menerima alias kolom di GROUP BY.
+      - lines: [8, 8]
+        clause: ORDER BY bulan
+        text: Berbeda dari GROUP BY, ORDER BY boleh memakai alias. Karena hasilnya bertipe timestamp, urutannya benar secara waktu.
+  - dialects: [mysql]
+    note: DATE_FORMAT menghasilkan teks, bukan tanggal. Format '%Y-%m' dipilih karena urutan alfabetisnya sama dengan urutan waktunya.
+    code: |
+      SELECT
+        DATE_FORMAT(o.ordered_at, '%Y-%m') AS bulan,
+        COUNT(DISTINCT o.id) AS jumlah_pesanan,
+        SUM(oi.quantity * oi.unit_price) AS total
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      GROUP BY bulan
+      ORDER BY bulan;
+    explanation:
+      - lines: [2, 2]
+        clause: "DATE_FORMAT(o.ordered_at, '%Y-%m')"
+        text: Ubah timestamp menjadi teks berisi tahun dan bulan saja, misalnya 2026-10. Semua pesanan di bulan yang sama jadi punya teks identik.
+      - lines: [3, 3]
+        clause: COUNT(DISTINCT o.id)
+        text: DISTINCT wajib di sini. Karena tabel sudah di-JOIN ke order_items, satu pesanan berisi dua item akan muncul dua baris dan ikut terhitung dua kali.
+      - lines: [4, 4]
+        clause: SUM(oi.quantity * oi.unit_price)
+        text: Total pendapatan dihitung per item, jadi perkalian baris oleh JOIN justru dibutuhkan di sini.
+      - lines: [5, 6]
+        clause: JOIN order_items oi ON oi.order_id = o.id
+        text: Nilai transaksi tersimpan di order_items, sehingga kedua tabel perlu digabung.
+      - lines: [7, 8]
+        clause: GROUP BY bulan
+        text: Tidak seperti PostgreSQL, MySQL menerima alias kolom di GROUP BY sehingga ekspresinya tidak perlu diulang.
+  - dialects: [sqlite]
+    note: strftime adalah satu-satunya cara memformat tanggal di SQLite, dan hasilnya selalu berupa teks.
+    code: |
+      SELECT
+        strftime('%Y-%m', o.ordered_at) AS bulan,
+        COUNT(DISTINCT o.id) AS jumlah_pesanan,
+        SUM(oi.quantity * oi.unit_price) AS total
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      GROUP BY bulan
+      ORDER BY bulan;
+    explanation:
+      - lines: [2, 2]
+        clause: "strftime('%Y-%m', o.ordered_at)"
+        text: Ambil tahun dan bulan dari teks tanggal, misalnya 2026-10. Kolom ordered_at di SQLite bertipe TEXT, dan strftime bisa membacanya selama formatnya 'YYYY-MM-DD HH:MM:SS'.
+      - lines: [3, 3]
+        clause: COUNT(DISTINCT o.id)
+        text: DISTINCT wajib di sini. Karena tabel sudah di-JOIN ke order_items, satu pesanan berisi dua item akan muncul dua baris dan ikut terhitung dua kali.
+      - lines: [4, 4]
+        clause: SUM(oi.quantity * oi.unit_price)
+        text: Total pendapatan dihitung per item, jadi perkalian baris oleh JOIN justru dibutuhkan di sini.
+      - lines: [5, 6]
+        clause: JOIN order_items oi ON oi.order_id = o.id
+        text: Nilai transaksi tersimpan di order_items, sehingga kedua tabel perlu digabung.
+      - lines: [7, 8]
+        clause: GROUP BY bulan
+        text: SQLite menerima alias kolom di GROUP BY, jadi ekspresi strftime tidak perlu diulang.
+sample:
+  description: Ditampilkan seandainya ketiga pesanan contoh (H-10, H-5, H-1) jatuh di bulan yang sama. Karena tanggal seed relatif terhadap hari kamu menjalankannya, bila H-10 jatuh di bulan sebelumnya hasilnya terpecah menjadi dua baris. Kolom bulan pada hasil sebenarnya berisi bulan kalender, misalnya 2026-10.
+  input:
+    - caption: orders
+      columns: [id, status, ordered_at]
+      rows:
+        - [1, paid, 'H-10 09:15:00']
+        - [2, paid, 'H-5 14:02:00']
+        - [3, pending, 'H-1 19:40:00']
+  output:
+    caption: Hasil
+    columns: [bulan, jumlah_pesanan, total]
+    rows:
+      - [bulan seed, 3, 419000]
+notes:
+  - type: warning
+    title: Jangan kelompokkan dengan nama bulan
+    text: "Format seperti 'Oktober' atau '%m-%Y' membuat pengurutan jadi alfabetis, bukan kronologis, sehingga April muncul sebelum Januari. Selalu kelompokkan dengan format yang bisa diurutkan ('%Y-%m') atau dengan tanggal asli, lalu ubah ke nama bulan di lapisan tampilan."
+  - type: warning
+    title: Bulan tanpa transaksi tidak muncul
+    text: GROUP BY hanya menghasilkan baris untuk bulan yang punya data. Pada grafik, bulan kosong akan hilang begitu saja, bukan tampil sebagai nol. Hasilkan dulu deret bulan lengkap, lalu LEFT JOIN data ke deret tersebut.
+  - type: tip
+    text: Mengelompokkan per hari, kuartal, atau tahun memakai pola yang sama, cukup ganti satuannya, misalnya DATE_TRUNC('day', …) di PostgreSQL atau '%Y-%m-%d' pada DATE_FORMAT dan strftime.
+  - type: info
+    text: Semua status pesanan ikut dihitung di contoh ini. Tambahkan WHERE o.status = 'paid' bila laporan hanya boleh memuat pendapatan yang sudah terbayar.

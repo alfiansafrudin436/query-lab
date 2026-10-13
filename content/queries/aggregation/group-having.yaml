@@ -5,8 +5,8 @@ difficulty: beginner
 tags: [group by, having, sum, agregasi, omzet]
 popularity: 5
 createdAt: '2026-08-12'
-updatedAt: '2026-10-12'
-related: [running-total, top-n-per-group]
+updatedAt: '2026-10-13'
+related: [running-total, top-n-per-group, aggregate-functions]
 variants:
   - dialects: [postgresql, mysql, sqlite]
     code: |

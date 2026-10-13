@@ -1,0 +1,82 @@
+title: Pecah query bertahap dengan WITH (CTE)
+summary: Hitung nilai per pesanan lebih dulu, lalu jumlahkan per customer, dalam dua langkah yang mudah dibaca.
+whenToUse: Saat sebuah perhitungan butuh beberapa tahap agregasi, dan menulisnya sebagai subquery bersarang membuat query sulit dibaca.
+difficulty: intermediate
+tags: [cte, with, bertahap, subquery, agregasi berlapis]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.8.3'
+related: [subquery-in-exists, top-n-per-group, aggregate-functions]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH item_total AS (
+        SELECT
+          oi.order_id,
+          SUM(oi.quantity * oi.unit_price) AS order_value
+        FROM order_items oi
+        GROUP BY oi.order_id
+      ),
+      customer_total AS (
+        SELECT
+          o.customer_id,
+          SUM(it.order_value) AS lifetime_value
+        FROM orders o
+        JOIN item_total it ON it.order_id = o.id
+        GROUP BY o.customer_id
+      )
+      SELECT
+        c.name,
+        ct.lifetime_value
+      FROM customer_total ct
+      JOIN customers c ON c.id = ct.customer_id
+      ORDER BY ct.lifetime_value DESC;
+    explanation:
+      - lines: [1, 1]
+        clause: WITH item_total AS (…)
+        text: WITH membuat tabel sementara bernama item_total yang hanya hidup selama query ini berjalan. Namanya bisa dipakai seperti tabel biasa di bawahnya.
+      - lines: [2, 6]
+        clause: SUM(oi.quantity * unit_price) GROUP BY oi.order_id
+        text: Tahap pertama, hitung nilai total setiap pesanan dari item-itemnya.
+      - lines: [7, 8]
+        clause: ), customer_total AS (
+        text: CTE kedua dipisahkan dengan koma, dan kata WITH tidak diulang. CTE berikutnya boleh merujuk CTE sebelumnya.
+      - lines: [9, 15]
+        clause: SUM(it.order_value) GROUP BY o.customer_id
+        text: Tahap kedua, jumlahkan nilai pesanan per customer. Agregasi berlapis seperti ini tidak bisa ditulis sebagai SUM(SUM(…)) dalam satu query.
+      - lines: [16, 20]
+        clause: FROM customer_total ct JOIN customers c …
+        text: Query utama memakai hasil tahap terakhir, lalu mengambil nama customer-nya.
+      - lines: [21, 21]
+        clause: ORDER BY ct.lifetime_value DESC
+        text: Urutkan dari customer dengan nilai belanja terbesar.
+sample:
+  description: Pesanan 1 bernilai 183.000 dan pesanan 3 bernilai 50.000, keduanya milik Rina, sehingga totalnya 233.000. Semua status pesanan ikut dihitung.
+  input:
+    - caption: order_items
+      columns: [order_id, product_id, quantity, unit_price]
+      rows:
+        - [1, 101, 2, 79000]
+        - [1, 102, 1, 25000]
+        - [2, 103, 3, 62000]
+        - [3, 102, 2, 25000]
+  output:
+    caption: Hasil
+    columns: [name, lifetime_value]
+    rows:
+      - [Rina Wijaya, 233000]
+      - [Dimas Pratama, 186000]
+notes:
+  - type: tip
+    title: CTE memudahkan penelusuran kesalahan
+    text: Untuk memeriksa tahap tertentu, ganti query utama menjadi SELECT * FROM item_total. Dengan subquery bersarang, memeriksa satu tahap jauh lebih merepotkan.
+  - type: warning
+    title: CTE bukan jaminan lebih cepat
+    text: Di MySQL dan SQLite, CTE biasanya digabungkan ke query utama seperti subquery biasa. Di PostgreSQL sebelum versi 12, CTE selalu dihitung terpisah dan hasilnya ditahan, sehingga kadang justru lebih lambat. Sejak 12, PostgreSQL ikut menggabungkannya kecuali ditulis WITH … AS MATERIALIZED.
+  - type: warning
+    text: Satu CTE yang dirujuk dua kali bisa dihitung dua kali. Bila perhitungannya berat, pertimbangkan tabel sementara atau AS MATERIALIZED di PostgreSQL.
+  - type: info
+    text: Pesanan tanpa item tidak akan muncul, karena INNER JOIN ke item_total membuangnya. Pakai LEFT JOIN dan COALESCE bila pesanan kosong perlu tampil bernilai nol.

@@ -1,0 +1,67 @@
+title: Subquery dengan IN dan EXISTS
+summary: Pilih customer yang punya pesanan berstatus paid memakai subquery di dalam WHERE.
+whenToUse: Saat butuh menyaring baris berdasarkan keberadaan data di tabel lain, tanpa menampilkan kolom dari tabel tersebut.
+difficulty: intermediate
+tags: [subquery, 'in', exists, not in, not exists, nested query]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [anti-join, cte-staged, inner-join]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT c.id, c.name, c.city
+      FROM customers c
+      WHERE c.id IN (
+        SELECT o.customer_id
+        FROM orders o
+        WHERE o.status = 'paid'
+      )
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT c.id, c.name, c.city FROM customers c
+        text: Hasil akhirnya hanya kolom dari customers. Inilah keunggulan subquery dibanding JOIN di kasus ini, tidak ada kolom tabel lain yang ikut terbawa.
+      - lines: [3, 3]
+        clause: WHERE c.id IN (…)
+        text: Baris dipertahankan bila nilai c.id ada di dalam daftar yang dihasilkan subquery.
+      - lines: [4, 6]
+        clause: SELECT o.customer_id FROM orders o WHERE …
+        text: Subquery menghasilkan daftar id customer yang pernah punya pesanan paid. Subquery ini mandiri, tidak merujuk kolom dari query luar, sehingga cukup dijalankan sekali.
+      - lines: [7, 8]
+        clause: ORDER BY c.id
+        text: Satu customer tetap muncul sekali meski punya banyak pesanan paid, karena IN hanya memeriksa ada atau tidak.
+sample:
+  description: Sari dan Rina W. belum pernah memesan, sedangkan pesanan Rina yang pending tidak memengaruhi hasil karena ia sudah punya satu pesanan paid.
+  input:
+    - caption: customers
+      columns: [id, name, city]
+      rows:
+        - [1, Rina Wijaya, Bandung]
+        - [2, Dimas Pratama, Surabaya]
+        - [3, Sari Lestari, Yogyakarta]
+        - [4, Rina W., Bandung]
+    - caption: orders
+      columns: [id, customer_id, status]
+      rows:
+        - [1, 1, paid]
+        - [2, 2, paid]
+        - [3, 1, pending]
+  output:
+    caption: Hasil
+    columns: [id, name, city]
+    rows:
+      - [1, Rina Wijaya, Bandung]
+      - [2, Dimas Pratama, Surabaya]
+notes:
+  - type: warning
+    title: NOT IN berbahaya bila ada NULL
+    text: Jika subquery menghasilkan satu saja nilai NULL, NOT IN tidak akan mengembalikan baris apa pun. Penyebabnya, perbandingan dengan NULL bernilai "tidak diketahui", bukan benar. NOT EXISTS tidak punya masalah ini, jadi pakailah NOT EXISTS untuk mencari data tanpa relasi.
+  - type: tip
+    title: EXISTS sebagai alternatif
+    text: "Query yang sama bisa ditulis: WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status = 'paid'). Bentuk ini merujuk c.id dari query luar, sehingga disebut correlated subquery."
+  - type: info
+    title: IN, EXISTS, atau JOIN?
+    text: Pada database modern, ketiganya biasanya menghasilkan rencana eksekusi yang mirip, jadi pilihlah yang paling mudah dibaca. IN cocok untuk daftar nilai sederhana, EXISTS untuk syarat yang melibatkan beberapa kolom, dan JOIN bila kolom tabel lain memang perlu ditampilkan.
+  - type: tip
+    text: JOIN bisa melipatgandakan baris bila satu customer punya banyak pesanan, sehingga perlu DISTINCT. IN dan EXISTS tidak pernah menduplikasi baris.
