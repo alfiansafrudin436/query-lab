@@ -1,0 +1,50 @@
+title: DROP dan RENAME yang aman dengan IF EXISTS
+summary: Buang tabel tanpa error bila sudah tiada, dan ganti nama tabel sebagai langkah migrasi bertahap.
+whenToUse: Saat menulis skrip migrasi yang harus bisa dijalankan berulang tanpa gagal, atau mengganti tabel lama dengan yang baru.
+difficulty: intermediate
+tags: [drop table, if exists, rename, migrasi, idempoten]
+popularity: 6
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [alter-table, create-table, create-view]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      DROP TABLE IF EXISTS suppliers_lama;
+
+      ALTER TABLE suppliers RENAME TO suppliers_lama;
+
+      DROP INDEX IF EXISTS idx_customers_email;
+    explanation:
+      - lines: [1, 1]
+        clause: DROP TABLE IF EXISTS suppliers_lama
+        text: Tambahan IF EXISTS membuat perintah ini tidak gagal bila tabelnya memang belum ada. Inilah yang membuat skrip migrasi aman dijalankan berulang kali.
+      - lines: [3, 3]
+        clause: ALTER TABLE suppliers RENAME TO suppliers_lama
+        text: Mengganti nama berlangsung seketika karena hanya mengubah katalog, datanya tidak disentuh. Berguna untuk menyimpan tabel lama sementara, sebelum benar-benar dibuang.
+      - lines: [5, 5]
+        clause: DROP INDEX IF EXISTS idx_customers_email
+        text: Pola yang sama berlaku untuk index dan view. Perlu dicatat, MySQL tidak menerima IF EXISTS pada DROP INDEX, jadi di sana perintahnya ditulis tanpa itu.
+sample:
+  description: Ringkasan dukungan IF EXISTS, yang justru paling sering jadi sumber kegagalan skrip migrasi lintas database.
+  output:
+    caption: Dukungan IF EXISTS per objek
+    columns: [perintah, postgresql, mysql, sqlite]
+    rows:
+      - [DROP TABLE IF EXISTS, Ya, Ya, Ya]
+      - [DROP VIEW IF EXISTS, Ya, Ya, Ya]
+      - [DROP INDEX IF EXISTS, Ya, Tidak, Ya]
+      - [CREATE TABLE IF NOT EXISTS, Ya, Ya, Ya]
+      - [CREATE INDEX IF NOT EXISTS, Ya, Tidak, Ya]
+notes:
+  - type: warning
+    title: DROP TABLE tidak bisa dibatalkan di MySQL
+    text: Di PostgreSQL, DROP TABLE berada di dalam transaksi sehingga masih bisa di-ROLLBACK selama belum COMMIT. Di MySQL, DDL langsung permanen dan bahkan menutup transaksi yang sedang berjalan. Pastikan ada cadangan sebelum menjalankannya.
+  - type: tip
+    title: Ganti nama dulu, hapus belakangan
+    text: Pada migrasi berisiko, jangan langsung DROP. Ganti nama tabelnya menjadi sesuatu seperti suppliers_lama, jalankan aplikasi beberapa hari, baru hapus setelah yakin tidak ada yang memanggilnya. Memulihkan dari RENAME jauh lebih mudah daripada memulihkan dari cadangan.
+  - type: warning
+    title: RENAME tidak ikut memperbarui pemakainya
+    text: View, trigger, dan kode aplikasi yang menunjuk nama lama akan langsung rusak. Cari dulu seluruh pemakainya, karena database tidak akan memperingatkan apa pun.
+  - type: info
+    text: MySQL juga punya RENAME TABLE a TO b yang bisa mengganti nama beberapa tabel sekaligus dalam satu perintah atomik, berguna untuk menukar tabel lama dan baru tanpa jeda.

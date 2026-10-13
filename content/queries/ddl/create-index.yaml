@@ -1,0 +1,52 @@
+title: Buat index tunggal dan komposit
+summary: Percepat pencarian pesanan per customer dengan index gabungan, dan pahami urutan kolomnya.
+whenToUse: Saat sebuah query sering dijalankan dan terasa lambat karena harus memindai seluruh tabel.
+difficulty: intermediate
+tags: [create index, index komposit, unique index, performa]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [unused-index, explain-analyze, keyset-pagination]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      CREATE INDEX idx_orders_customer_ordered
+        ON orders (customer_id, ordered_at);
+
+      CREATE UNIQUE INDEX idx_customers_email
+        ON customers (email);
+    explanation:
+      - lines: [1, 1]
+        clause: CREATE INDEX idx_orders_customer_ordered
+        text: Beri nama yang menerangkan isinya, misalnya diawali idx lalu nama tabel dan kolomnya. Nama index harus unik dalam satu database di PostgreSQL dan SQLite.
+      - lines: [2, 2]
+        clause: ON orders (customer_id, ordered_at)
+        text: Index komposit atas dua kolom. Urutannya menentukan segalanya, dan kolom yang paling sering dipakai sebagai syarat kesamaan diletakkan lebih dulu.
+      - lines: [4, 5]
+        clause: CREATE UNIQUE INDEX idx_customers_email
+        text: Selain mempercepat, index unik sekaligus melarang nilai kembar. Ini cara menambahkan aturan unik pada tabel yang sudah terlanjur ada.
+sample:
+  description: Index ini membuat pencarian pesanan milik satu customer, apalagi yang diurutkan berdasarkan waktu, tidak lagi perlu memindai seluruh tabel orders.
+  output:
+    caption: Query yang terbantu index komposit
+    columns: [pola query, terpakai?]
+    rows:
+      - ['WHERE customer_id = 1', 'Ya, memakai kolom pertama']
+      - ['WHERE customer_id = 1 AND ordered_at >= …', 'Ya, memakai kedua kolom']
+      - ['WHERE customer_id = 1 ORDER BY ordered_at', 'Ya, pengurutannya ikut gratis']
+      - ['WHERE ordered_at >= …', 'Tidak, kolom pertama dilewati']
+notes:
+  - type: warning
+    title: Urutan kolom menentukan index terpakai atau tidak
+    text: Index atas (customer_id, ordered_at) tidak membantu query yang hanya menyaring ordered_at, karena index hanya bisa dibaca dari kolom paling kiri. Ini sering disebut aturan leftmost prefix. Bila kedua pola sama-sama sering dipakai, buat dua index terpisah.
+  - type: warning
+    title: Index tidak gratis
+    text: Setiap INSERT, UPDATE, dan DELETE harus ikut memperbarui seluruh index di tabel itu, dan index memakan ruang penyimpanan. Tabel dengan banyak index menjadi lambat saat ditulisi. Buat index karena ada query yang terbukti lambat, bukan untuk berjaga-jaga.
+  - type: tip
+    title: Buat index tanpa mengunci tabel
+    text: PostgreSQL menyediakan CREATE INDEX CONCURRENTLY agar tabel tetap bisa ditulisi selama index dibangun, dengan syarat tidak dijalankan di dalam transaksi. MySQL 8 melakukannya online secara bawaan untuk sebagian besar kasus.
+  - type: warning
+    title: Index unik gagal bila data sudah kembar
+    text: Pada skema contoh, dua customer memakai email yang sama, sehingga perintah index unik di atas akan ditolak. Bersihkan duplikatnya lebih dulu, misalnya dengan contoh cari data duplikat lalu hapus duplikat.
+  - type: info
+    text: Membungkus kolom dengan fungsi membuat index biasa tidak terpakai. PostgreSQL dan SQLite mendukung index berbasis ekspresi untuk kasus seperti ini, sedangkan MySQL memerlukan generated column yang diberi index.

@@ -1,0 +1,100 @@
+title: CREATE TABLE dengan constraint
+summary: Buat tabel suppliers lengkap dengan primary key, UNIQUE, NOT NULL, DEFAULT, dan CHECK.
+whenToUse: Saat menyiapkan tabel baru, dan kamu ingin database sendiri yang menjaga agar data tidak masuk dalam keadaan salah.
+difficulty: beginner
+tags: [create table, constraint, primary key, unique, check, default]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [alter-table, foreign-key-on-delete, drop-rename-safe]
+variants:
+  - dialects: [postgresql]
+    note: SERIAL adalah cara ringkas membuat kolom berurut. Sejak PostgreSQL 10, GENERATED ALWAYS AS IDENTITY lebih disarankan karena merupakan sintaks standar.
+    code: |
+      CREATE TABLE suppliers (
+        id         SERIAL PRIMARY KEY,
+        name       VARCHAR(120) NOT NULL,
+        email      VARCHAR(150) UNIQUE,
+        rating     INT NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 5),
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    explanation:
+      - lines: [2, 2]
+        clause: id SERIAL PRIMARY KEY
+        text: PRIMARY KEY menjadikan kolom ini penanda unik tiap baris, sekaligus otomatis NOT NULL dan berindex. SERIAL membuat nilainya terisi berurut sendiri.
+      - lines: [3, 3]
+        clause: name VARCHAR(120) NOT NULL
+        text: NOT NULL melarang kolom dibiarkan kosong. Pilih ini untuk kolom yang memang wajib, karena jauh lebih murah daripada membersihkan data kosong di kemudian hari.
+      - lines: [4, 4]
+        clause: email VARCHAR(150) UNIQUE
+        text: UNIQUE melarang dua baris bernilai sama. Perlu dicatat, beberapa baris boleh sama-sama NULL karena NULL tidak dianggap sama dengan NULL mana pun.
+      - lines: [5, 5]
+        clause: DEFAULT 0 CHECK (rating BETWEEN 0 AND 5)
+        text: DEFAULT mengisi nilai bila kolom tidak disebut saat INSERT, sedangkan CHECK menolak nilai di luar rentang yang masuk akal.
+      - lines: [6, 7]
+        clause: created_at dengan DEFAULT CURRENT_TIMESTAMP
+        text: Waktu pembuatan baris diisi database, bukan aplikasi, sehingga seragam walau datanya masuk dari banyak sumber.
+  - dialects: [mysql]
+    note: MySQL memakai AUTO_INCREMENT, dan CHECK baru benar-benar ditegakkan sejak versi 8.0.16. Sebelum itu sintaksnya diterima tapi diabaikan diam-diam.
+    code: |
+      CREATE TABLE suppliers (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        name       VARCHAR(120) NOT NULL,
+        email      VARCHAR(150) UNIQUE,
+        rating     INT NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 5),
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    explanation:
+      - lines: [2, 2]
+        clause: id INT AUTO_INCREMENT PRIMARY KEY
+        text: AUTO_INCREMENT adalah padanan SERIAL di MySQL. Kolomnya wajib berindex, dan menjadikannya PRIMARY KEY sudah memenuhi syarat itu.
+      - lines: [3, 3]
+        clause: name VARCHAR(120) NOT NULL
+        text: NOT NULL melarang kolom dibiarkan kosong. Pilih ini untuk kolom yang memang wajib, karena jauh lebih murah daripada membersihkan data kosong di kemudian hari.
+      - lines: [4, 4]
+        clause: email VARCHAR(150) UNIQUE
+        text: UNIQUE melarang dua baris bernilai sama. Perlu dicatat, beberapa baris boleh sama-sama NULL karena NULL tidak dianggap sama dengan NULL mana pun.
+      - lines: [5, 5]
+        clause: DEFAULT 0 CHECK (rating BETWEEN 0 AND 5)
+        text: DEFAULT mengisi nilai bila kolom tidak disebut saat INSERT. CHECK menolak nilai di luar rentang, asalkan versinya 8.0.16 ke atas.
+      - lines: [6, 7]
+        clause: created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        text: MySQL memakai DATETIME, bukan TIMESTAMP, agar nilainya tidak ikut digeser oleh zona waktu sesi.
+  - dialects: [sqlite]
+    note: SQLite memakai tipe yang longgar. INTEGER PRIMARY KEY adalah satu-satunya bentuk yang berperilaku sebagai nomor urut otomatis.
+    code: |
+      CREATE TABLE suppliers (
+        id         INTEGER PRIMARY KEY,
+        name       TEXT NOT NULL,
+        email      TEXT UNIQUE,
+        rating     INTEGER NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 5),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    explanation:
+      - lines: [2, 2]
+        clause: id INTEGER PRIMARY KEY
+        text: Bentuk ini istimewa di SQLite, kolomnya menjadi alias rowid dan terisi berurut sendiri. Menulis INT PRIMARY KEY saja tidak mendapat perilaku tersebut.
+      - lines: [3, 3]
+        clause: name TEXT NOT NULL
+        text: SQLite tidak punya VARCHAR, semua teks disimpan sebagai TEXT tanpa batas panjang. Batas panjang perlu dijaga lewat CHECK atau di sisi aplikasi.
+      - lines: [4, 4]
+        clause: email TEXT UNIQUE
+        text: UNIQUE melarang dua baris bernilai sama, dan seperti di dialek lain, beberapa baris NULL tetap diperbolehkan.
+      - lines: [5, 5]
+        clause: DEFAULT 0 CHECK (rating BETWEEN 0 AND 5)
+        text: CHECK sudah ditegakkan SQLite sejak lama, jadi tidak ada syarat versi seperti di MySQL.
+      - lines: [6, 7]
+        clause: created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        text: Waktu disimpan sebagai teks karena SQLite tidak punya tipe tanggal tersendiri. Formatnya tetap bisa dibaca fungsi date dan datetime.
+notes:
+  - type: tip
+    title: Pakai constraint sebanyak yang masuk akal
+    text: Constraint adalah jaring pengaman terakhir yang tidak bisa ditembus bug di aplikasi mana pun, termasuk skrip perbaikan manual. Memasangnya sejak awal jauh lebih mudah daripada menambahkannya setelah data telanjur kotor.
+  - type: warning
+    title: Menambahkan constraint belakangan sering gagal
+    text: Begitu tabel sudah berisi data yang melanggar, ALTER TABLE untuk menambah NOT NULL atau CHECK akan ditolak. Bersihkan datanya lebih dulu, baru pasang constraint-nya.
+  - type: warning
+    title: CHECK di MySQL lama tidak berfungsi
+    text: Di MySQL sebelum 8.0.16, klausa CHECK diterima tanpa error tetapi tidak pernah diperiksa. Pastikan versinya, karena constraint yang disangka aktif padahal diabaikan lebih berbahaya daripada tidak memasangnya sama sekali.
+  - type: info
+    text: Tabel contoh ini sengaja bernama suppliers, di luar enam tabel skema contoh, agar bisa dijalankan tanpa mengganggu data untuk contoh query lainnya.

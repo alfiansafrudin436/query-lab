@@ -1,0 +1,115 @@
+title: Pecah array JSON menjadi baris
+summary: Ubah array tags di dalam metadata pesanan menjadi satu baris per tag, agar bisa dikelompokkan.
+whenToUse: Saat array di dalam JSON perlu diperlakukan seperti tabel, misalnya menghitung tag mana yang paling sering dipakai.
+difficulty: advanced
+tags: [json, array, unnest, json_table, json_each, lateral]
+popularity: 6
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0.4'
+related: [rows-to-json, json-extract-field, recursive-cte-series]
+variants:
+  - dialects: [postgresql]
+    note: Fungsi penghasil baris ditulis di FROM, dan otomatis bersifat lateral sehingga bisa merujuk kolom tabel di sebelah kirinya.
+    code: |
+      SELECT
+        o.id,
+        tag
+      FROM orders o
+      CROSS JOIN LATERAL jsonb_array_elements_text(o.metadata -> 'tags') AS tag
+      ORDER BY o.id, tag;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, tag
+        text: Kolom dari tabel asal bisa dipakai berdampingan dengan hasil pemecahan array.
+      - lines: [5, 5]
+        clause: o.metadata -> 'tags'
+        text: Panah tunggal dipakai di sini, bukan panah ganda, karena yang dibutuhkan adalah array dalam bentuk JSON, bukan teksnya.
+      - lines: [5, 5]
+        clause: jsonb_array_elements_text(…)
+        text: Menghasilkan satu baris per elemen array. Versi tanpa akhiran text mengembalikan elemen sebagai JSON yang masih berkutip.
+      - lines: [5, 5]
+        clause: CROSS JOIN LATERAL
+        text: Kata LATERAL membuat fungsi ini boleh merujuk o.metadata dari baris yang sedang diproses. Pesanan tanpa tags otomatis tidak menghasilkan baris sama sekali.
+      - lines: [6, 6]
+        clause: ORDER BY o.id, tag
+        text: Urutkan agar hasilnya mudah dibaca.
+  - dialects: [mysql]
+    note: JSON_TABLE mengubah dokumen JSON menjadi tabel sementara, dan kolomnya perlu dideklarasikan tipenya.
+    code: |
+      SELECT
+        o.id,
+        t.tag
+      FROM orders o
+      JOIN JSON_TABLE(
+        o.metadata,
+        '$.tags[*]' COLUMNS (tag VARCHAR(50) PATH '$')
+      ) AS t
+      ORDER BY o.id, t.tag;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, t.tag
+        text: Kolom dari tabel asal bisa dipakai berdampingan dengan hasil pemecahan array.
+      - lines: [5, 6]
+        clause: JSON_TABLE(o.metadata, …)
+        text: Argumen pertama adalah dokumen JSON yang akan dibedah, diambil dari baris yang sedang diproses.
+      - lines: [7, 7]
+        clause: '$.tags[*]'
+        text: Jalur dengan tanda bintang di dalam kurung siku berarti setiap elemen array tags. Inilah yang menentukan satu baris dihasilkan per elemen.
+      - lines: [7, 7]
+        clause: COLUMNS (tag VARCHAR(50) PATH '$')
+        text: Bentuk kolom hasilnya wajib dideklarasikan, lengkap dengan tipe. Tanda dolar sendirian berarti elemen itu seutuhnya.
+      - lines: [8, 9]
+        clause: AS t lalu ORDER BY
+        text: Hasil JSON_TABLE wajib diberi alias. Pesanan tanpa tags tidak menghasilkan baris.
+  - dialects: [sqlite]
+    note: json_each adalah tabel virtual yang memecah array atau objek menjadi baris, dengan kolom siap pakai bernama key dan value.
+    code: |
+      SELECT
+        o.id,
+        t.value AS tag
+      FROM orders o
+      JOIN json_each(o.metadata, '$.tags') AS t
+      ORDER BY o.id, t.value;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, t.value AS tag
+        text: Kolom value berisi isi tiap elemen. Tersedia juga kolom key yang berisi nomor urut elemen pada array.
+      - lines: [5, 5]
+        clause: json_each(o.metadata, '$.tags')
+        text: Argumen kedua menunjuk bagian dokumen yang hendak dipecah. Tanpa argumen itu, yang dipecah adalah tingkat teratas dokumen.
+      - lines: [5, 5]
+        clause: Ditulis sebagai JOIN
+        text: json_each adalah tabel virtual, sehingga ditulis di FROM seperti tabel biasa dan boleh merujuk kolom dari tabel di kirinya.
+      - lines: [6, 6]
+        clause: ORDER BY o.id, t.value
+        text: Urutkan agar hasilnya mudah dibaca.
+sample:
+  description: Pesanan 1 punya dua tag sehingga menghasilkan dua baris, pesanan 2 satu baris, dan pesanan 3 tidak menghasilkan baris karena metadata-nya NULL.
+  input:
+    - caption: orders
+      columns: [id, metadata]
+      rows:
+        - [1, '{"channel": "web", "tags": ["promo", "bundling"]}']
+        - [2, '{"channel": "mobile", "tags": ["promo"]}']
+        - [3, null]
+  output:
+    caption: Hasil
+    columns: [id, tag]
+    rows:
+      - [1, bundling]
+      - [1, promo]
+      - [2, promo]
+notes:
+  - type: warning
+    title: Baris tanpa array akan hilang
+    text: Pesanan yang metadata-nya NULL atau tidak punya field tags tidak menghasilkan baris apa pun, sehingga ikut lenyap dari hasil. Pakai LEFT JOIN LATERAL di PostgreSQL atau LEFT JOIN pada dialek lain bila baris tersebut tetap perlu muncul.
+  - type: tip
+    title: Setelah jadi baris, semuanya biasa saja
+    text: Begitu array terpecah menjadi baris, hasilnya bisa diperlakukan seperti tabel biasa. Tambahkan GROUP BY tag beserta COUNT untuk mengetahui tag mana yang paling sering dipakai.
+  - type: warning
+    title: Jumlah baris bisa berlipat
+    text: Satu pesanan dengan sepuluh tag menjadi sepuluh baris, sehingga agregasi atas kolom milik pesanan akan terhitung berulang. Pecah array di dalam subquery terpisah bila tabel induknya masih perlu diagregasi.
+  - type: info
+    text: Bila sebuah array sering dipecah dan dicari isinya, itu pertanda datanya lebih cocok disimpan di tabel penghubung tersendiri. Tabel biasa lebih mudah diberi index dan constraint daripada array di dalam JSON.

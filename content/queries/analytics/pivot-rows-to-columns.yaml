@@ -1,0 +1,68 @@
+title: Pivot baris menjadi kolom
+summary: Ubah kategori yang tadinya berupa baris menjadi kolom tersendiri, sehingga tiap pesanan cukup satu baris.
+whenToUse: Saat laporan atau ekspor spreadsheet butuh bentuk matriks, misalnya satu baris per pesanan dengan kolom per kategori.
+difficulty: advanced
+tags: [pivot, crosstab, sum case, matriks, laporan]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [conditional-aggregate, rollup-subtotal, case-when]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    note: Tidak satu pun dari ketiga database ini punya perintah PIVOT, jadi polanya memang SUM dengan CASE dan itu berlaku di mana saja.
+    code: |
+      SELECT
+        o.id AS pesanan,
+        SUM(CASE WHEN cat.name = 'Kopi' THEN oi.quantity ELSE 0 END) AS kopi,
+        SUM(CASE WHEN cat.name = 'Teh' THEN oi.quantity ELSE 0 END) AS teh
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN products p ON p.id = oi.product_id
+      JOIN categories cat ON cat.id = p.category_id
+      GROUP BY o.id
+      ORDER BY o.id;
+    explanation:
+      - lines: [2, 2]
+        clause: o.id AS pesanan
+        text: Kolom yang menjadi baris pada matriks hasil. Inilah sumbu tegaknya.
+      - lines: [3, 4]
+        clause: SUM(CASE WHEN cat.name = … THEN … ELSE 0 END)
+        text: Satu kolom hasil untuk tiap nilai yang ingin dijadikan kolom. CASE memilih baris yang cocok, lalu SUM menjumlahkannya. Nilai yang tidak cocok disumbang nol.
+      - lines: [5, 8]
+        clause: Rantai JOIN sampai categories
+        text: Nama kategori berada tiga tabel jauhnya dari pesanan, jadi perlu dirangkai lewat order_items dan products.
+      - lines: [9, 9]
+        clause: GROUP BY o.id
+        text: Satu baris per pesanan. Tanpa pengelompokan ini, hasilnya tetap satu baris per item dan matriksnya tidak terbentuk.
+      - lines: [10, 10]
+        clause: ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+sample:
+  description: Pesanan 1 memuat kopi dan teh sekaligus, sehingga kedua kolomnya terisi. Pesanan 2 hanya kopi dan pesanan 3 hanya teh, dan kolom yang tidak terisi bernilai nol, bukan kosong.
+  input:
+    - caption: order_items
+      columns: [order_id, product_id, quantity]
+      rows:
+        - [1, 101, 2]
+        - [1, 102, 1]
+        - [2, 103, 3]
+        - [3, 102, 2]
+  output:
+    caption: Hasil
+    columns: [pesanan, kopi, teh]
+    rows:
+      - [1, 2, 1]
+      - [2, 3, 0]
+      - [3, 0, 2]
+notes:
+  - type: warning
+    title: Daftar kolomnya harus diketahui lebih dulu
+    text: Inilah keterbatasan terbesar pivot di SQL. Nama kolom wajib ditulis saat query disusun, sehingga kategori baru tidak akan muncul sampai query-nya diubah. SQL tidak bisa menghasilkan kolom secara dinamis dari isi data.
+  - type: tip
+    title: Kalau kolomnya berubah-ubah
+    text: Untuk kategori yang bisa bertambah, biarkan database mengembalikan bentuk baris biasa lalu lakukan pivot di lapisan aplikasi atau di alat laporan. Alternatif lain, susun query-nya secara dinamis, tetapi itu membawa risiko SQL injection dan jauh lebih sulit dirawat.
+  - type: info
+    title: PostgreSQL punya crosstab
+    text: Ekstensi tablefunc menyediakan fungsi crosstab yang lebih ringkas. Bentuk SUM dengan CASE tetap lebih disarankan karena tidak butuh ekstensi dan berjalan sama di ketiga database.
+  - type: tip
+    text: Pakai ELSE 0 agar sel kosong bernilai nol, atau hilangkan ELSE agar bernilai NULL. Pilih sesuai kebutuhan, karena nol berarti tidak ada transaksi sedangkan NULL biasanya berarti tidak berlaku.

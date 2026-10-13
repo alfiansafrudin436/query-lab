@@ -1,0 +1,85 @@
+title: Segmentasi RFM sederhana
+summary: Hitung kapan terakhir belanja, seberapa sering, dan berapa nilainya, lalu beri label segmen tiap customer.
+whenToUse: Saat ingin memisahkan pelanggan setia dari pembeli sesekali, misalnya untuk menentukan sasaran promosi.
+difficulty: advanced
+tags: [rfm, segmentasi, recency, frequency, monetary, cte]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.8.3'
+related: [cohort-retention, funnel-conversion, cte-staged]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH rfm AS (
+        SELECT
+          o.customer_id,
+          MAX(o.ordered_at) AS terakhir,
+          COUNT(DISTINCT o.id) AS frekuensi,
+          SUM(oi.quantity * oi.unit_price) AS nilai
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        GROUP BY o.customer_id
+      )
+      SELECT
+        c.name,
+        r.terakhir,
+        r.frekuensi,
+        r.nilai,
+        CASE
+          WHEN r.frekuensi >= 2 AND r.nilai >= 200000 THEN 'Pelanggan utama'
+          WHEN r.frekuensi >= 2 THEN 'Sering belanja'
+          ELSE 'Pembeli baru'
+        END AS segmen
+      FROM rfm r
+      JOIN customers c ON c.id = r.customer_id
+      ORDER BY r.nilai DESC;
+    explanation:
+      - lines: [1, 10]
+        clause: WITH rfm AS (…)
+        text: Ketiga ukuran dihitung sekali jalan dalam satu CTE, sehingga query utama tinggal memberi label tanpa menghitung ulang.
+      - lines: [4, 4]
+        clause: 'MAX(o.ordered_at) sebagai Recency'
+        text: Kapan terakhir kali customer berbelanja. Makin baru makin besar kemungkinan ia masih aktif.
+      - lines: [5, 5]
+        clause: 'COUNT(DISTINCT o.id) sebagai Frequency'
+        text: Berapa kali ia berbelanja. DISTINCT wajib karena tabel sudah digabung ke order_items, sehingga satu pesanan bisa muncul beberapa baris.
+      - lines: [6, 6]
+        clause: 'SUM(…) sebagai Monetary'
+        text: Total uang yang pernah dibelanjakan. Di sini perkalian baris akibat JOIN justru dibutuhkan, karena nilainya memang dihitung per item.
+      - lines: [16, 20]
+        clause: CASE WHEN … THEN 'Pelanggan utama'
+        text: Aturan sederhana yang mengubah tiga angka menjadi satu label yang bisa langsung dipakai tim pemasaran. Ambang batasnya ditentukan sendiri sesuai bisnis.
+      - lines: [21, 23]
+        clause: JOIN customers c lalu ORDER BY r.nilai DESC
+        text: Nama customer baru ditempelkan di akhir, dan hasilnya diurutkan dari penyumbang terbesar.
+sample:
+  description: Data contoh hanya punya dua customer yang pernah memesan, jadi perhatikan polanya, bukan besaran angkanya. Tanggal ditulis relatif terhadap hari seed dijalankan.
+  input:
+    - caption: orders
+      columns: [id, customer_id, ordered_at]
+      rows:
+        - [1, 1, 'H-10 09:15:00']
+        - [2, 2, 'H-5 14:02:00']
+        - [3, 1, 'H-1 19:40:00']
+  output:
+    caption: Hasil
+    columns: [name, terakhir, frekuensi, nilai, segmen]
+    rows:
+      - [Rina Wijaya, 'H-1 19:40:00', 2, 233000, Pelanggan utama]
+      - [Dimas Pratama, 'H-5 14:02:00', 1, 186000, Pembeli baru]
+notes:
+  - type: warning
+    title: Customer tanpa pesanan tidak muncul
+    text: INNER JOIN membuang customer yang belum pernah berbelanja, padahal justru merekalah sasaran kampanye pengaktifan. Pakai LEFT JOIN dari tabel customers bila mereka perlu ikut, dengan nilai nol.
+  - type: tip
+    title: Ambang batas tetap sebaiknya diganti peringkat
+    text: Angka 200000 pada contoh ini akan basi begitu harga berubah. Cara yang lazim adalah memakai NTILE(5) OVER (ORDER BY nilai) untuk membagi pelanggan ke lima kelompok relatif, sehingga ambangnya menyesuaikan sendiri mengikuti data.
+  - type: tip
+    title: Mengubah recency menjadi jumlah hari
+    text: Label segmen biasanya juga memperhitungkan jarak hari sejak pembelian terakhir. Sintaks selisih tanggalnya berbeda tiap dialek, jadi lihat contoh hitung selisih antar tanggal lalu tambahkan sebagai kolom.
+  - type: warning
+    title: Nilai total condong ke pelanggan lama
+    text: Pelanggan yang sudah bertahun-tahun berbelanja hampir pasti unggul pada Monetary, walau sudah lama tidak aktif. Batasi rentang waktunya, misalnya hanya 12 bulan terakhir, agar segmennya mencerminkan keadaan sekarang.

@@ -1,0 +1,105 @@
+title: Saring baris berdasarkan isi JSON
+summary: Ambil pesanan yang channel-nya web, dengan membandingkan field di dalam kolom JSON.
+whenToUse: Saat kriteria penyaringan tersimpan di dalam kolom JSON, misalnya mencari pesanan dari saluran tertentu.
+difficulty: intermediate
+tags: [json, filter, where, containment, json_extract]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [json-extract-field, json-array-to-rows, where-filter]
+variants:
+  - dialects: [postgresql]
+    note: Selain membandingkan field, PostgreSQL punya operator containment yang bisa memakai index GIN.
+    code: |
+      SELECT
+        o.id,
+        o.status,
+        o.metadata ->> 'channel' AS channel
+      FROM orders o
+      WHERE o.metadata ->> 'channel' = 'web'
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 5]
+        clause: SELECT … o.metadata ->> 'channel'
+        text: Field yang sama ditampilkan sekaligus disaring, agar hasilnya mudah diperiksa.
+      - lines: [6, 6]
+        clause: WHERE o.metadata ->> 'channel' = 'web'
+        text: Panah ganda menghasilkan teks, sehingga bisa langsung dibandingkan dengan teks biasa. Memakai panah tunggal akan gagal karena nilainya masih berkutip.
+      - lines: [6, 6]
+        clause: Alternatif dengan containment
+        text: Bentuk WHERE o.metadata berisi JSON tertentu, ditulis dengan operator containment, bisa memanfaatkan index GIN. Perbandingan panah ganda tidak bisa, kecuali dibuatkan index ekspresi.
+      - lines: [7, 7]
+        clause: ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+  - dialects: [mysql]
+    note: MySQL juga punya JSON_CONTAINS, tetapi perbandingan panah ganda lebih mudah dibaca untuk nilai tunggal.
+    code: |
+      SELECT
+        o.id,
+        o.status,
+        o.metadata ->> '$.channel' AS channel
+      FROM orders o
+      WHERE o.metadata ->> '$.channel' = 'web'
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 5]
+        clause: SELECT … o.metadata ->> '$.channel'
+        text: Field yang sama ditampilkan sekaligus disaring, agar hasilnya mudah diperiksa.
+      - lines: [6, 6]
+        clause: WHERE o.metadata ->> '$.channel' = 'web'
+        text: Panah ganda membuka kutip nilainya sehingga bisa dibandingkan dengan teks biasa.
+      - lines: [6, 6]
+        clause: Soal pemakaian index
+        text: MySQL tidak bisa mengindex kolom JSON secara langsung. Buat generated column atas field ini lalu beri index, bila penyaringan seperti ini sering dipakai.
+      - lines: [7, 7]
+        clause: ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+  - dialects: [sqlite]
+    note: Pola yang sama memakai json_extract, dan kolomnya bisa diindex lewat index berbasis ekspresi.
+    code: |
+      SELECT
+        o.id,
+        o.status,
+        json_extract(o.metadata, '$.channel') AS channel
+      FROM orders o
+      WHERE json_extract(o.metadata, '$.channel') = 'web'
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 5]
+        clause: SELECT … json_extract(o.metadata, '$.channel')
+        text: Field yang sama ditampilkan sekaligus disaring, agar hasilnya mudah diperiksa.
+      - lines: [6, 6]
+        clause: WHERE json_extract(…) = 'web'
+        text: Hasil json_extract sudah berupa nilai tanpa kutip, jadi perbandingannya langsung bekerja.
+      - lines: [6, 6]
+        clause: Soal pemakaian index
+        text: SQLite mendukung index berbasis ekspresi, sehingga index atas json_extract yang sama persis akan terpakai oleh query ini.
+      - lines: [7, 7]
+        clause: ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+sample:
+  description: Hanya pesanan 1 yang channel-nya web. Pesanan 3 tidak ikut karena metadata-nya NULL, dan perbandingan dengan NULL tidak pernah bernilai benar.
+  input:
+    - caption: orders
+      columns: [id, status, metadata]
+      rows:
+        - [1, paid, '{"channel": "web", "coupon": "HEMAT10", "tags": ["promo", "bundling"]}']
+        - [2, paid, '{"channel": "mobile", "tags": ["promo"]}']
+        - [3, pending, null]
+  output:
+    caption: Hasil
+    columns: [id, status, channel]
+    rows:
+      - [1, paid, web]
+notes:
+  - type: warning
+    title: Hampir selalu memindai seluruh tabel
+    text: Membungkus kolom dengan fungsi atau operator JSON membuat index biasa tidak terpakai, sehingga setiap baris harus diurai satu per satu. Pada tabel besar ini terasa sekali. Buat index khusus, atau pindahkan field yang sering dicari menjadi kolom tersendiri.
+  - type: warning
+    title: Baris ber-JSON NULL ikut tersaring keluar
+    text: Pesanan tanpa metadata tidak akan pernah lolos syarat apa pun, termasuk syarat tidak sama dengan. Bila baris seperti itu perlu ikut, tulis syaratnya secara eksplisit dengan OR o.metadata IS NULL.
+  - type: tip
+    title: Angka di dalam JSON perlu di-cast
+    text: Nilai yang diambil keluar sebagai teks, sehingga perbandingan angka dilakukan secara alfabetis dan membuat 9 terbaca lebih besar daripada 10. Lakukan CAST ke integer lebih dulu bila membandingkan angka.
+  - type: info
+    text: Untuk memeriksa ada tidaknya sebuah field, PostgreSQL menyediakan operator tanda tanya, MySQL punya JSON_CONTAINS_PATH, dan SQLite bisa memakai json_type yang menghasilkan NULL bila jalurnya tidak ada.

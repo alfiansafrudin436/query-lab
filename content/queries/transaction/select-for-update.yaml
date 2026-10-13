@@ -1,0 +1,81 @@
+title: Kunci baris dengan SELECT FOR UPDATE
+summary: Tahan baris stok selama transaksi berjalan, agar dua pembeli tidak sama-sama mengurangi dari angka yang sama.
+whenToUse: Saat nilai dibaca lebih dulu lalu dipakai menghitung nilai barunya, dan dua proses bersamaan bisa saling menimpa.
+difficulty: advanced
+tags: [for update, row lock, kunci baris, race condition, konkurensi]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [begin-commit-rollback, isolation-level, update-join]
+variants:
+  - dialects: [postgresql, mysql]
+    note: FOR UPDATE mengunci baris yang terbaca sampai transaksi berakhir. Sesi lain yang meminta baris sama akan menunggu.
+    code: |
+      BEGIN;
+
+      SELECT stock
+      FROM products
+      WHERE id = 101
+      FOR UPDATE;
+
+      UPDATE products
+      SET stock = stock - 2
+      WHERE id = 101;
+
+      COMMIT;
+    explanation:
+      - lines: [1, 1]
+        clause: BEGIN
+        text: Kunci baris hanya berlaku di dalam transaksi. Tanpa BEGIN, kuncinya langsung lepas begitu perintah selesai sehingga tidak ada gunanya.
+      - lines: [3, 5]
+        clause: SELECT stock FROM products WHERE id = 101
+        text: Membaca nilai yang akan dipakai sebagai dasar perhitungan di aplikasi, misalnya untuk memeriksa stok masih cukup.
+      - lines: [6, 6]
+        clause: FOR UPDATE
+        text: Inilah intinya. Baris yang terbaca dikunci sampai COMMIT, sehingga sesi lain tidak bisa mengubah atau ikut menguncinya dan terpaksa menunggu.
+      - lines: [8, 10]
+        clause: UPDATE products SET stock = stock - 2
+        text: Perubahan dijalankan dengan jaminan tidak ada yang menyelip di antara pembacaan dan penulisan.
+      - lines: [12, 12]
+        clause: COMMIT
+        text: Menyimpan perubahan sekaligus melepas kuncinya. Sesi yang menunggu baru berjalan setelah titik ini.
+  - dialects: [sqlite]
+    note: SQLite tidak punya kunci per baris sama sekali. Yang tersedia adalah kunci untuk seluruh database, dan BEGIN IMMEDIATE adalah padanan terdekatnya.
+    code: |
+      BEGIN IMMEDIATE;
+
+      SELECT stock
+      FROM products
+      WHERE id = 101;
+
+      UPDATE products
+      SET stock = stock - 2
+      WHERE id = 101;
+
+      COMMIT;
+    explanation:
+      - lines: [1, 1]
+        clause: BEGIN IMMEDIATE
+        text: Langsung mengambil kunci tulis atas seluruh database sejak awal transaksi, bukan menunggu sampai ada perintah menulis. Inilah yang mencegah dua penulis berjalan bersamaan.
+      - lines: [3, 5]
+        clause: SELECT stock FROM products WHERE id = 101
+        text: Membaca nilai yang akan dipakai sebagai dasar perhitungan. Tidak ada klausa FOR UPDATE di SQLite, dan menuliskannya akan menghasilkan error.
+      - lines: [7, 9]
+        clause: UPDATE products SET stock = stock - 2
+        text: Perubahan dijalankan dengan jaminan tidak ada penulis lain yang menyelip.
+      - lines: [11, 11]
+        clause: COMMIT
+        text: Menyimpan perubahan dan melepas kunci database.
+notes:
+  - type: warning
+    title: Yang dikunci SQLite adalah seluruh database
+    text: Berbeda jauh dari PostgreSQL dan MySQL, BEGIN IMMEDIATE menahan semua penulis lain ke database itu, bukan hanya baris yang bersangkutan. Ini memadai untuk aplikasi kecil, tetapi tidak sebanding dengan kunci per baris.
+  - type: tip
+    title: Sering kali kunci tidak diperlukan
+    text: Bila nilai barunya bisa dihitung langsung di SQL, seperti SET stock = stock - 2, satu perintah UPDATE sudah bersifat atomik dengan sendirinya dan tidak butuh FOR UPDATE. Kunci baru benar-benar perlu ketika nilainya harus dibawa ke aplikasi dulu untuk diperiksa.
+  - type: warning
+    title: Waspadai deadlock
+    text: Dua transaksi yang mengunci baris yang sama dalam urutan berbeda bisa saling menunggu selamanya. Database akan membunuh salah satunya dengan error deadlock. Cegah dengan selalu mengunci baris dalam urutan yang sama, misalnya diurutkan berdasarkan id.
+  - type: info
+    title: Pilihan agar tidak menunggu
+    text: Tambahkan NOWAIT agar query langsung gagal bila baris sedang terkunci, atau SKIP LOCKED agar baris terkunci dilewati saja. SKIP LOCKED adalah cara umum membangun antrean pekerjaan di atas tabel biasa.

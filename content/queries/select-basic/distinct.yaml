@@ -6,7 +6,7 @@ tags: [distinct, unik, duplikat, nilai berbeda]
 popularity: 8
 createdAt: '2026-10-13'
 updatedAt: '2026-10-13'
-related: [count-distinct, group-having, select-alias]
+related: [count-distinct, find-duplicates, group-having]
 variants:
   - dialects: [postgresql, mysql, sqlite]
     code: |

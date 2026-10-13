@@ -1,0 +1,63 @@
+title: SAVEPOINT untuk membatalkan sebagian
+summary: Tandai titik di tengah transaksi, lalu batalkan sampai titik itu saja tanpa membuang seluruh pekerjaan.
+whenToUse: Saat satu transaksi panjang punya langkah yang boleh gagal, misalnya mencoba memperbarui data tambahan yang sifatnya opsional.
+difficulty: advanced
+tags: [savepoint, rollback to, transaksi bersarang, release]
+popularity: 5
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [begin-commit-rollback, isolation-level, select-for-update]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      BEGIN;
+
+      UPDATE products
+      SET stock = stock - 1
+      WHERE id = 101;
+
+      SAVEPOINT sebelum_teh;
+
+      UPDATE products
+      SET stock = stock - 5
+      WHERE id = 102;
+
+      ROLLBACK TO SAVEPOINT sebelum_teh;
+
+      RELEASE SAVEPOINT sebelum_teh;
+
+      COMMIT;
+    explanation:
+      - lines: [1, 5]
+        clause: BEGIN lalu UPDATE pertama
+        text: Perubahan pertama, mengurangi stok kopi. Bagian ini yang nantinya tetap tersimpan.
+      - lines: [7, 7]
+        clause: SAVEPOINT sebelum_teh
+        text: Menandai titik aman di tengah transaksi, dan diberi nama agar bisa dituju kembali. Transaksi tetap berjalan, tidak ada yang tersimpan permanen di sini.
+      - lines: [9, 11]
+        clause: UPDATE kedua
+        text: Perubahan yang ternyata keliru, misalnya stok teh dikurangi terlalu banyak.
+      - lines: [13, 13]
+        clause: ROLLBACK TO SAVEPOINT sebelum_teh
+        text: Membatalkan hanya perubahan sesudah savepoint. Perhatikan bahwa transaksinya tidak ikut berakhir, dan UPDATE pertama tetap utuh.
+      - lines: [15, 15]
+        clause: RELEASE SAVEPOINT sebelum_teh
+        text: Melepas penanda yang sudah tidak diperlukan. Langkah ini opsional, karena seluruh savepoint otomatis hilang saat transaksi selesai.
+      - lines: [17, 17]
+        clause: COMMIT
+        text: Menyimpan hasil akhirnya, yaitu hanya perubahan pada stok kopi. Pengurangan stok teh sudah dibatalkan dan tidak pernah tersimpan.
+notes:
+  - type: info
+    title: Hasil akhir di skema contoh
+    text: Setelah rangkaian ini dijalankan, stok Kopi Arabika berkurang 1 menjadi 11, sedangkan Teh Melati tetap 30. Inilah bukti bahwa pembatalannya hanya mengenai bagian setelah savepoint.
+  - type: warning
+    title: ROLLBACK biasa membuang semuanya
+    text: Menulis ROLLBACK tanpa TO SAVEPOINT akan membatalkan seluruh transaksi sejak BEGIN, termasuk perubahan sebelum savepoint. Satu kata yang terlewat membuat bedanya besar sekali.
+  - type: tip
+    title: Dipakai diam-diam oleh ORM
+    text: Banyak ORM memakai savepoint untuk membuat transaksi bersarang. Memanggil transaksi di dalam transaksi biasanya tidak membuka transaksi baru, melainkan membuat savepoint. Memahami ini membantu menjelaskan perilaku rollback yang tampak aneh.
+  - type: warning
+    title: Jangan dipakai menggantikan penanganan error
+    text: Savepoint berguna untuk langkah yang memang boleh gagal, bukan untuk menambal query yang belum diuji. Terlalu banyak savepoint membuat transaksi panjang, dan transaksi panjang menahan kunci lebih lama.
+  - type: info
+    text: Nama savepoint boleh dipakai ulang. Membuat savepoint dengan nama yang sama akan menggantikan yang lama, dan ini mudah membingungkan, jadi pakailah nama yang jelas berbeda.

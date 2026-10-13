@@ -6,7 +6,7 @@ tags: [delete, foreign key, relasi, hapus data, cascade]
 popularity: 8
 createdAt: '2026-10-13'
 updatedAt: '2026-10-13'
-related: [delete-duplicates, subquery-in-exists, insert-basic]
+related: [delete-duplicates, foreign-key-on-delete, insert-basic]
 variants:
   - dialects: [postgresql, mysql, sqlite]
     code: |

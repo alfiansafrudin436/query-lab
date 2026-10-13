@@ -1,0 +1,60 @@
+title: Keyset pagination yang tetap cepat
+summary: Ganti OFFSET dengan penanda baris terakhir, agar halaman ke-1000 secepat halaman pertama.
+whenToUse: Saat data berjumlah besar dan pagination dengan OFFSET mulai terasa lambat di halaman-halaman akhir.
+difficulty: advanced
+tags: [keyset pagination, cursor, seek method, offset, performa]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [pagination, order-by-limit, create-index]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT p.id, p.name, p.price
+      FROM products p
+      WHERE p.id > 101
+      ORDER BY p.id
+      LIMIT 2;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT p.id, p.name, p.price FROM products p
+        text: Kolom penanda, di sini p.id, wajib ikut ditampilkan karena nilainya diperlukan untuk meminta halaman berikutnya.
+      - lines: [3, 3]
+        clause: WHERE p.id > 101
+        text: Inilah inti keyset pagination. Angka 101 adalah id baris terakhir di halaman sebelumnya, jadi database bisa langsung melompat ke titik itu lewat index.
+      - lines: [4, 4]
+        clause: ORDER BY p.id
+        text: Urutannya wajib sama persis dengan kolom yang dipakai di WHERE. Bila berbeda, baris bisa terlewat atau muncul dua kali.
+      - lines: [5, 5]
+        clause: LIMIT 2
+        text: Jumlah baris per halaman. Simpan id baris terakhir dari hasil ini untuk dipakai sebagai batas pada permintaan berikutnya.
+sample:
+  description: Halaman ini dimulai tepat setelah produk 101. Untuk halaman berikutnya, ganti angka 101 dengan 103, yaitu id terakhir pada hasil ini.
+  input:
+    - caption: products
+      columns: [id, name, price]
+      rows:
+        - [101, Kopi Arabika 250g, 79000]
+        - [102, Teh Melati 100g, 25000]
+        - [103, Kopi Robusta 250g, 62000]
+  output:
+    caption: Hasil
+    columns: [id, name, price]
+    rows:
+      - [102, Teh Melati 100g, 25000]
+      - [103, Kopi Robusta 250g, 62000]
+notes:
+  - type: warning
+    title: Kenapa OFFSET makin lama makin lambat
+    text: OFFSET 100000 memaksa database tetap membaca dan membuang seratus ribu baris pertama sebelum mengembalikan apa pun. Keyset pagination melompat langsung lewat index, sehingga waktunya tetap sama di halaman mana pun.
+  - type: warning
+    title: Kolom penandanya harus unik
+    text: Mengurutkan dengan kolom yang nilainya bisa kembar, misalnya tanggal, membuat baris bernilai sama terlewat atau terulang di perbatasan halaman. Pakai pasangan kolom, misalnya ORDER BY ordered_at, id, dan bandingkan sebagai tuple dengan (ordered_at, id) lebih besar dari nilai terakhir.
+  - type: warning
+    title: Tidak bisa melompat ke halaman tertentu
+    text: Keyset pagination hanya mengenal halaman berikutnya dan sebelumnya, karena ia butuh penanda dari halaman terakhir yang dibaca. Antarmuka bernomor halaman tetap memerlukan OFFSET, atau nomor halaman diganti tombol muat lebih banyak.
+  - type: tip
+    title: Pastikan ada indexnya
+    text: Keuntungan cara ini sepenuhnya bergantung pada adanya index atas kolom pengurut. Tanpa index, database tetap memindai seluruh tabel dan tidak ada bedanya dengan OFFSET.
+  - type: info
+    text: Pola ini juga dikenal sebagai seek method atau cursor pagination. Banyak API publik memakainya, dan penanda tadi biasanya dibungkus menjadi token buram agar klien tidak bergantung pada bentuk aslinya.

@@ -1,0 +1,77 @@
+title: Retensi cohort berdasarkan pesanan pertama
+summary: Kelompokkan customer menurut tanggal pesanan pertamanya, lalu hitung berapa yang kembali memesan.
+whenToUse: Saat ingin tahu apakah pelanggan yang datang pada periode tertentu bertahan, misalnya mengukur dampak kampanye promosi.
+difficulty: advanced
+tags: [cohort, retensi, analitik, cte, pelanggan kembali]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.8.3'
+related: [cte-staged, funnel-conversion, rfm-segmentation]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH pertama AS (
+        SELECT
+          o.customer_id,
+          MIN(o.ordered_at) AS pesanan_pertama
+        FROM orders o
+        GROUP BY o.customer_id
+      )
+      SELECT
+        f.pesanan_pertama AS kohort,
+        COUNT(DISTINCT f.customer_id) AS jumlah_customer,
+        COUNT(DISTINCT CASE WHEN o.ordered_at > f.pesanan_pertama THEN o.customer_id END) AS kembali
+      FROM pertama f
+      JOIN orders o ON o.customer_id = f.customer_id
+      GROUP BY f.pesanan_pertama
+      ORDER BY f.pesanan_pertama;
+    explanation:
+      - lines: [1, 7]
+        clause: WITH pertama AS (…)
+        text: Tahap pertama, tentukan kapan tiap customer pertama kali memesan. Tanggal inilah yang menjadi penanda kohortnya, dan tidak pernah berubah seumur hidup customer tersebut.
+      - lines: [9, 9]
+        clause: f.pesanan_pertama AS kohort
+        text: Satu baris hasil per kohort. Pada data nyata, tanggal ini biasanya dipotong menjadi bulan agar kelompoknya tidak terlalu banyak.
+      - lines: [10, 10]
+        clause: COUNT(DISTINCT f.customer_id)
+        text: Ukuran kohort, yaitu berapa banyak customer yang mulai pada periode tersebut.
+      - lines: [11, 11]
+        clause: COUNT(DISTINCT CASE WHEN … END)
+        text: Inti perhitungan retensi. Hanya pesanan yang terjadi setelah pesanan pertama yang dihitung, dan DISTINCT memastikan satu customer tidak terhitung berkali-kali.
+      - lines: [12, 13]
+        clause: JOIN orders o ON o.customer_id = f.customer_id
+        text: Seluruh pesanan tiap customer digabungkan kembali ke kohortnya, agar perilaku sesudahnya bisa diperiksa.
+      - lines: [14, 15]
+        clause: GROUP BY f.pesanan_pertama
+        text: Kelompokkan per kohort, lalu urutkan secara kronologis.
+sample:
+  description: Data contoh hanya punya tiga pesanan, jadi perhatikan polanya, bukan besaran angkanya. Rina membuka kohort H-10 lalu memesan lagi di H-1 sehingga terhitung kembali. Dimas membuka kohort H-5 dan belum pernah memesan lagi.
+  input:
+    - caption: orders
+      columns: [id, customer_id, ordered_at]
+      rows:
+        - [1, 1, 'H-10 09:15:00']
+        - [2, 2, 'H-5 14:02:00']
+        - [3, 1, 'H-1 19:40:00']
+  output:
+    caption: Hasil
+    columns: [kohort, jumlah_customer, kembali]
+    rows:
+      - ['H-10 09:15:00', 1, 1]
+      - ['H-5 14:02:00', 1, 0]
+notes:
+  - type: warning
+    title: Jangan pakai COUNT biasa di sini
+    text: Tanpa DISTINCT, customer yang memesan lima kali akan terhitung lima orang, sehingga angka retensi bisa melebihi ukuran kohortnya sendiri. Ini kesalahan paling sering pada analisis cohort.
+  - type: tip
+    title: Kelompokkan per bulan pada data nyata
+    text: Mengelompokkan per tanggal persis menghasilkan terlalu banyak kohort berisi satu orang. Bungkus dengan DATE_TRUNC di PostgreSQL, DATE_FORMAT di MySQL, atau strftime di SQLite untuk mendapat kohort bulanan.
+  - type: tip
+    title: Menjadi tabel retensi yang utuh
+    text: Bentuk yang biasa dipakai adalah matriks berisi bulan ke-0, ke-1, ke-2, dan seterusnya. Hitung selisih bulan antara tiap pesanan dan pesanan pertamanya, lalu pivot selisih itu menjadi kolom seperti pada contoh pivot baris menjadi kolom.
+  - type: warning
+    title: Kohort muda selalu terlihat buruk
+    text: Customer yang baru bergabung minggu ini belum punya kesempatan untuk kembali. Membandingkannya dengan kohort lama akan menyesatkan. Bandingkan hanya pada rentang umur yang sama, misalnya retensi 30 hari pertama saja.

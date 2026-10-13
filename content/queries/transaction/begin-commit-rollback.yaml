@@ -1,0 +1,74 @@
+title: BEGIN, COMMIT, dan ROLLBACK
+summary: Bungkus beberapa perintah menjadi satu kesatuan, agar semuanya berhasil bersama atau dibatalkan bersama.
+whenToUse: Saat beberapa perubahan hanya masuk akal bila terjadi serentak, misalnya mengurangi stok sekaligus mencatat pesanannya.
+difficulty: intermediate
+tags: [transaksi, begin, commit, rollback, atomik]
+popularity: 10
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [savepoint, isolation-level, update-join]
+variants:
+  - dialects: [postgresql, sqlite]
+    note: Keduanya memakai BEGIN. Di PostgreSQL, perintah DDL pun ikut bisa dibatalkan di dalam transaksi.
+    code: |
+      BEGIN;
+
+      UPDATE products
+      SET stock = stock - 2
+      WHERE id = 101;
+
+      INSERT INTO order_items (order_id, product_id, quantity, unit_price)
+      VALUES (3, 101, 2, 79000);
+
+      COMMIT;
+    explanation:
+      - lines: [1, 1]
+        clause: BEGIN
+        text: Menandai awal transaksi. Mulai titik ini, perubahan hanya terlihat oleh sesi kamu sendiri sampai dinyatakan selesai.
+      - lines: [3, 5]
+        clause: UPDATE products SET stock = stock - 2
+        text: Langkah pertama, kurangi stok. Bila langkah berikutnya gagal, pengurangan ini tidak boleh ikut tersimpan.
+      - lines: [7, 8]
+        clause: INSERT INTO order_items …
+        text: Langkah kedua. Dua perintah ini adalah satu pekerjaan utuh, karena stok berkurang tanpa item tercatat berarti data jadi tidak konsisten.
+      - lines: [10, 10]
+        clause: COMMIT
+        text: Menyimpan seluruh perubahan sekaligus dan membuatnya terlihat sesi lain. Ganti dengan ROLLBACK untuk membatalkan semuanya seolah tidak pernah terjadi.
+  - dialects: [mysql]
+    note: MySQL memakai START TRANSACTION. Perintah DDL seperti CREATE atau ALTER tidak bisa dibatalkan dan justru menutup transaksi yang berjalan.
+    code: |
+      START TRANSACTION;
+
+      UPDATE products
+      SET stock = stock - 2
+      WHERE id = 101;
+
+      INSERT INTO order_items (order_id, product_id, quantity, unit_price)
+      VALUES (3, 101, 2, 79000);
+
+      COMMIT;
+    explanation:
+      - lines: [1, 1]
+        clause: START TRANSACTION
+        text: Menandai awal transaksi. Kata BEGIN juga diterima MySQL, tetapi START TRANSACTION adalah bentuk standarnya dan tidak rancu dengan blok BEGIN pada stored procedure.
+      - lines: [3, 5]
+        clause: UPDATE products SET stock = stock - 2
+        text: Langkah pertama, kurangi stok. Bila langkah berikutnya gagal, pengurangan ini tidak boleh ikut tersimpan.
+      - lines: [7, 8]
+        clause: INSERT INTO order_items …
+        text: Langkah kedua. Dua perintah ini adalah satu pekerjaan utuh, karena stok berkurang tanpa item tercatat berarti data jadi tidak konsisten.
+      - lines: [10, 10]
+        clause: COMMIT
+        text: Menyimpan seluruh perubahan sekaligus. Ganti dengan ROLLBACK untuk membatalkan semuanya.
+notes:
+  - type: warning
+    title: Autocommit menyala secara bawaan
+    text: Tanpa BEGIN, setiap perintah langsung tersimpan sendiri-sendiri. Jadi UPDATE yang keliru tidak bisa dibatalkan, karena sudah terlanjur commit begitu dijalankan. Biasakan membuka transaksi sebelum perubahan yang berisiko.
+  - type: warning
+    title: Transaksi yang dibiarkan terbuka mengunci data
+    text: Transaksi yang belum di-COMMIT menahan kunci pada baris yang disentuhnya, dan sesi lain bisa ikut menunggu. Jangan menyelipkan panggilan jaringan atau menunggu masukan pengguna di tengah transaksi. Buat transaksi sependek mungkin.
+  - type: tip
+    title: DDL di MySQL memutus transaksi
+    text: Menjalankan CREATE TABLE atau ALTER TABLE di tengah transaksi MySQL akan diam-diam melakukan commit atas semua perubahan sebelumnya. Di PostgreSQL ini tidak terjadi, sehingga migrasi skema bisa dibungkus transaksi dengan aman.
+  - type: info
+    text: Bila terjadi error di tengah transaksi, PostgreSQL menolak semua perintah berikutnya sampai ada ROLLBACK. MySQL dan SQLite membiarkan transaksi berlanjut, jadi penanganan errornya perlu ditangani sendiri oleh aplikasi.

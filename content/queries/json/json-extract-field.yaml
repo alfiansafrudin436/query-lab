@@ -1,0 +1,107 @@
+title: Ambil field dari kolom JSON
+summary: Baca channel dan kupon dari kolom metadata pesanan, lalu tampilkan sebagai kolom biasa.
+whenToUse: Saat sebagian data disimpan sebagai JSON dan kamu perlu menampilkan isinya sebagai kolom di laporan.
+difficulty: intermediate
+tags: [json, json_extract, operator panah, metadata, ekstraksi]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [json-filter, json-array-to-rows, null-handling]
+variants:
+  - dialects: [postgresql]
+    note: Operator panah ganda mengembalikan teks biasa, sedangkan panah tunggal mengembalikan JSON. Hampir selalu yang diinginkan adalah panah ganda.
+    code: |
+      SELECT
+        o.id,
+        o.status,
+        o.metadata ->> 'channel' AS channel,
+        o.metadata ->> 'coupon' AS coupon
+      FROM orders o
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, o.status
+        text: Kolom biasa tetap diambil seperti biasa, bercampur dengan hasil pembacaan JSON.
+      - lines: [4, 4]
+        clause: o.metadata ->> 'channel'
+        text: Panah ganda mengambil nilai sebuah field dan mengembalikannya sebagai teks. Memakai panah tunggal menghasilkan JSON, sehingga teksnya ikut berkutip ganda.
+      - lines: [5, 5]
+        clause: o.metadata ->> 'coupon'
+        text: Field yang tidak ada menghasilkan NULL, bukan error. Jadi pesanan tanpa kupon tetap muncul dengan sel kosong.
+      - lines: [6, 7]
+        clause: FROM orders o ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+  - dialects: [mysql]
+    note: MySQL memakai jalur JSON bergaya path, selalu diawali tanda dolar yang berarti akar dokumen.
+    code: |
+      SELECT
+        o.id,
+        o.status,
+        o.metadata ->> '$.channel' AS channel,
+        o.metadata ->> '$.coupon' AS coupon
+      FROM orders o
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, o.status
+        text: Kolom biasa tetap diambil seperti biasa, bercampur dengan hasil pembacaan JSON.
+      - lines: [4, 4]
+        clause: o.metadata ->> '$.channel'
+        text: Tanda dolar mewakili akar dokumen, lalu titik menunjuk nama field. Panah ganda adalah singkatan dari JSON_UNQUOTE(JSON_EXTRACT(…)).
+      - lines: [5, 5]
+        clause: o.metadata ->> '$.coupon'
+        text: Field yang tidak ada menghasilkan NULL, bukan error.
+      - lines: [6, 7]
+        clause: FROM orders o ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+  - dialects: [sqlite]
+    note: SQLite menyimpan JSON sebagai teks biasa dan membacanya lewat fungsi json_extract dengan jalur bergaya MySQL.
+    code: |
+      SELECT
+        o.id,
+        o.status,
+        json_extract(o.metadata, '$.channel') AS channel,
+        json_extract(o.metadata, '$.coupon') AS coupon
+      FROM orders o
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, o.status
+        text: Kolom biasa tetap diambil seperti biasa, bercampur dengan hasil pembacaan JSON.
+      - lines: [4, 4]
+        clause: json_extract(o.metadata, '$.channel')
+        text: Mengambil nilai pada jalur tersebut. Berbeda dari dialek lain, hasilnya sudah berupa nilai tanpa kutip, jadi tidak perlu dibuka kutipnya lagi.
+      - lines: [5, 5]
+        clause: json_extract(o.metadata, '$.coupon')
+        text: Field yang tidak ada menghasilkan NULL. SQLite 3.38 ke atas juga mendukung operator panah seperti PostgreSQL dan MySQL.
+      - lines: [6, 7]
+        clause: FROM orders o ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+sample:
+  description: Pesanan 2 punya metadata tetapi tanpa kupon, sedangkan pesanan 3 metadata-nya NULL sama sekali. Keduanya menghasilkan sel kosong, sehingga perlu dibedakan lewat kolom lain bila artinya penting.
+  input:
+    - caption: orders
+      columns: [id, status, metadata]
+      rows:
+        - [1, paid, '{"channel": "web", "coupon": "HEMAT10", "tags": ["promo", "bundling"]}']
+        - [2, paid, '{"channel": "mobile", "tags": ["promo"]}']
+        - [3, pending, null]
+  output:
+    caption: Hasil
+    columns: [id, status, channel, coupon]
+    rows:
+      - [1, paid, web, HEMAT10]
+      - [2, paid, mobile, null]
+      - [3, pending, null, null]
+notes:
+  - type: warning
+    title: Tiga macam kosong yang terlihat sama
+    text: Kolom JSON yang NULL, field yang tidak ada, dan field yang berisi null JSON semuanya tampil sebagai sel kosong. Bila ketiganya punya arti berbeda di aplikasimu, bedakan dengan json_type di SQLite atau JSON_TYPE di MySQL.
+  - type: warning
+    title: Panah tunggal menyisakan tanda kutip
+    text: Di PostgreSQL dan MySQL, panah tunggal mengembalikan JSON sehingga teksnya masih berkutip ganda. Membandingkannya dengan teks biasa akan selalu gagal. Pakai panah ganda untuk mendapatkan teks apa adanya.
+  - type: tip
+    title: Pertimbangkan kolom biasa untuk data penting
+    text: JSON cocok untuk atribut yang bentuknya berubah-ubah. Field yang hampir selalu ada dan sering dicari sebaiknya dipindahkan menjadi kolom tersendiri, karena kolom biasa lebih mudah diberi index dan constraint.
+  - type: info
+    text: PostgreSQL punya dua tipe, yaitu json yang menyimpan teks apa adanya dan jsonb yang menyimpan bentuk terurai. Pilih jsonb hampir selalu, karena lebih cepat dibaca dan bisa diberi index GIN. Skema contoh ini memakai jsonb.

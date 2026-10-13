@@ -1,0 +1,66 @@
+title: Cari data duplikat
+summary: Temukan email yang dipakai lebih dari satu customer, beserta jumlah dan id paling awalnya.
+whenToUse: Saat memeriksa kebersihan data sebelum memasang constraint unik, atau saat mencurigai ada akun ganda.
+difficulty: beginner
+tags: [duplikat, group by, having, data bersih, audit]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [delete-duplicates, distinct, count-distinct]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        c.email,
+        COUNT(*) AS jumlah,
+        MIN(c.id) AS id_pertama
+      FROM customers c
+      GROUP BY c.email
+      HAVING COUNT(*) > 1
+      ORDER BY jumlah DESC, c.email;
+    explanation:
+      - lines: [2, 2]
+        clause: c.email
+        text: Kolom yang dianggap menentukan kembar tidaknya sebuah baris. Untuk duplikat berdasarkan beberapa kolom, sebutkan semuanya di sini dan di GROUP BY.
+      - lines: [3, 3]
+        clause: COUNT(*) AS jumlah
+        text: Banyaknya baris pada tiap nilai. Inilah angka yang dipakai menentukan duplikat.
+      - lines: [4, 4]
+        clause: MIN(c.id) AS id_pertama
+        text: Id terkecil biasanya dianggap baris asli yang dipertahankan, sedangkan sisanya kandidat untuk dihapus atau digabungkan.
+      - lines: [5, 6]
+        clause: GROUP BY c.email
+        text: Kelompokkan baris berdasarkan kolom yang diperiksa.
+      - lines: [7, 7]
+        clause: HAVING COUNT(*) > 1
+        text: HAVING menyaring setelah pengelompokan, berbeda dari WHERE yang menyaring sebelum. Syarat atas hasil agregat hanya bisa ditulis di sini.
+      - lines: [8, 8]
+        clause: ORDER BY jumlah DESC, c.email
+        text: Duplikat terbanyak tampil lebih dulu agar yang paling parah mudah terlihat.
+sample:
+  description: Rina Wijaya dan Rina W. memakai email yang sama, jadi email itu muncul sebagai duplikat dengan id pertama 1. Tiga email lain hanya dipakai sekali sehingga tersaring keluar oleh HAVING.
+  input:
+    - caption: customers
+      columns: [id, name, email]
+      rows:
+        - [1, Rina Wijaya, rina@example.com]
+        - [2, Dimas Pratama, dimas@example.com]
+        - [3, Sari Lestari, sari@example.com]
+        - [4, Rina W., rina@example.com]
+  output:
+    caption: Hasil
+    columns: [email, jumlah, id_pertama]
+    rows:
+      - [rina@example.com, 2, 1]
+notes:
+  - type: tip
+    title: Melihat barisnya, bukan hanya nilainya
+    text: Query ini hanya menampilkan nilai yang kembar. Untuk melihat seluruh baris yang terlibat, pakai ROW_NUMBER() OVER (PARTITION BY email ORDER BY id) di dalam CTE, lalu saring yang nomornya lebih dari 1.
+  - type: warning
+    title: NULL tidak pernah dianggap kembar
+    text: GROUP BY memperlakukan seluruh NULL sebagai satu kelompok, sehingga beberapa baris berkolom kosong akan terlihat sebagai duplikat. Sebaliknya, constraint UNIQUE justru membolehkan banyak NULL. Perbedaan ini sering membuat hasil pemeriksaan tidak cocok dengan perilaku constraint.
+  - type: warning
+    title: Duplikat sering karena beda ejaan
+    text: Teks dengan spasi berlebih atau beda huruf besar kecil tidak akan terdeteksi query ini. Kelompokkan dengan LOWER(TRIM(c.email)) bila ingin menangkap duplikat yang ejaannya sedikit berbeda.
+  - type: info
+    text: Setelah duplikat ditemukan dan diputuskan mana yang dipertahankan, lihat contoh hapus data duplikat untuk membersihkannya, lalu pasang index unik agar tidak terulang.

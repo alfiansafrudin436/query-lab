@@ -1,0 +1,75 @@
+title: CREATE VIEW untuk query yang sering dipakai
+summary: Simpan query nilai pesanan sebagai view, lalu panggil namanya seperti tabel biasa.
+whenToUse: Saat satu query yang sama disalin ke banyak tempat, dan kamu ingin definisinya tinggal di satu tempat saja.
+difficulty: intermediate
+tags: [create view, view, query tersimpan, abstraksi]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [create-table, cte-staged, drop-rename-safe]
+variants:
+  - dialects: [postgresql, mysql]
+    note: Keduanya mendukung CREATE OR REPLACE VIEW, sehingga definisinya bisa diperbarui tanpa menghapusnya dulu.
+    code: |
+      CREATE OR REPLACE VIEW order_total AS
+      SELECT
+        o.id AS order_id,
+        o.customer_id,
+        o.status,
+        SUM(oi.quantity * oi.unit_price) AS total
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      GROUP BY o.id, o.customer_id, o.status;
+    explanation:
+      - lines: [1, 1]
+        clause: CREATE OR REPLACE VIEW order_total AS
+        text: View adalah query yang diberi nama. Isinya tidak disimpan, melainkan dijalankan ulang setiap kali view dipanggil.
+      - lines: [2, 6]
+        clause: SELECT … SUM(oi.quantity * oi.unit_price)
+        text: Perhitungan yang tadinya diulang di banyak tempat kini tinggal di satu definisi. Memperbaikinya di sini otomatis berlaku untuk seluruh pemakainya.
+      - lines: [7, 9]
+        clause: JOIN order_items … GROUP BY …
+        text: View boleh memuat JOIN, agregasi, bahkan view lain. Setiap kolom hasil wajib punya nama, jadi kolom hitungan harus diberi alias.
+      - lines: [9, 9]
+        clause: Pemakaiannya
+        text: Setelah dibuat, cukup tulis SELECT dari order_total seperti memanggil tabel biasa.
+  - dialects: [sqlite]
+    note: SQLite tidak punya CREATE OR REPLACE untuk view, jadi view lama perlu dibuang lebih dulu.
+    code: |
+      DROP VIEW IF EXISTS order_total;
+
+      CREATE VIEW order_total AS
+      SELECT
+        o.id AS order_id,
+        o.customer_id,
+        o.status,
+        SUM(oi.quantity * oi.unit_price) AS total
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      GROUP BY o.id, o.customer_id, o.status;
+    explanation:
+      - lines: [1, 1]
+        clause: DROP VIEW IF EXISTS order_total
+        text: Pengganti CREATE OR REPLACE. Tambahan IF EXISTS membuat perintah ini aman dijalankan walau view-nya belum pernah ada.
+      - lines: [3, 3]
+        clause: CREATE VIEW order_total AS
+        text: View adalah query yang diberi nama. Isinya tidak disimpan, melainkan dijalankan ulang setiap kali view dipanggil.
+      - lines: [4, 8]
+        clause: SELECT … SUM(oi.quantity * oi.unit_price)
+        text: Perhitungan yang tadinya diulang di banyak tempat kini tinggal di satu definisi.
+      - lines: [9, 11]
+        clause: JOIN order_items … GROUP BY …
+        text: View boleh memuat JOIN dan agregasi. Setiap kolom hasil wajib punya nama, jadi kolom hitungan harus diberi alias.
+notes:
+  - type: warning
+    title: View tidak menyimpan hasil, jadi tidak otomatis cepat
+    text: Memanggil view sama saja menjalankan ulang query di dalamnya. Menumpuk view di atas view bisa menghasilkan query raksasa yang sulit dioptimalkan database. View membantu kerapian, bukan kecepatan.
+  - type: tip
+    title: Kalau butuh cepat, pakai materialized view
+    text: PostgreSQL punya MATERIALIZED VIEW yang benar-benar menyimpan hasilnya dan disegarkan dengan REFRESH MATERIALIZED VIEW. MySQL dan SQLite tidak punya, jadi padanannya adalah tabel ringkasan yang diperbarui terjadwal.
+  - type: warning
+    title: Mengubah tabel bisa merusak view
+    text: View menyimpan definisi, bukan ikatan ke kolom. Mengganti nama atau menghapus kolom yang dipakai view akan membuatnya error saat dipanggil, bukan saat kolomnya diubah. Periksa pemakai view sebelum mengubah tabel.
+  - type: info
+    title: Menulis lewat view
+    text: View sederhana atas satu tabel kadang bisa menerima INSERT dan UPDATE. Begitu ada JOIN atau GROUP BY seperti contoh ini, view menjadi hanya-baca. PostgreSQL menyediakan INSTEAD OF trigger bila view rumit tetap perlu bisa ditulisi.

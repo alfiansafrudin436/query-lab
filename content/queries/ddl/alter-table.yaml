@@ -1,0 +1,81 @@
+title: ALTER TABLE untuk ubah struktur
+summary: Tambah kolom baru, lalu ubah tipenya, termasuk cara menyiasati SQLite yang tidak bisa mengubah kolom.
+whenToUse: Saat struktur tabel perlu berubah mengikuti kebutuhan baru, misalnya menambah kolom nomor telepon atau memperlebar kolom teks.
+difficulty: intermediate
+tags: [alter table, add column, modify column, migrasi, ubah struktur]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [create-table, drop-rename-safe, create-index]
+variants:
+  - dialects: [postgresql]
+    note: PostgreSQL memakai ALTER COLUMN, dan menjalankan seluruh perintah ini di dalam satu transaksi yang bisa dibatalkan.
+    code: |
+      ALTER TABLE suppliers ADD COLUMN phone VARCHAR(30);
+      ALTER TABLE suppliers ALTER COLUMN name TYPE VARCHAR(200);
+      ALTER TABLE suppliers ALTER COLUMN rating SET DEFAULT 3;
+    explanation:
+      - lines: [1, 1]
+        clause: ADD COLUMN phone VARCHAR(30)
+        text: Kolom baru ditambahkan di akhir tabel dan berisi NULL untuk seluruh baris lama. Menambah kolom nullable tanpa nilai bawaan berlangsung cepat, berapa pun besar tabelnya.
+      - lines: [2, 2]
+        clause: ALTER COLUMN name TYPE VARCHAR(200)
+        text: Memperlebar kolom teks. PostgreSQL perlu memeriksa seluruh baris bila tipenya menyempit atau berubah jenis, dan selama itu tabel terkunci.
+      - lines: [3, 3]
+        clause: ALTER COLUMN rating SET DEFAULT 3
+        text: Mengubah nilai bawaan hanya berlaku untuk baris yang masuk setelahnya. Baris lama tidak ikut berubah.
+  - dialects: [mysql]
+    note: MySQL memakai MODIFY COLUMN, dan seluruh definisi kolom harus ditulis ulang lengkap, bukan hanya bagian yang berubah.
+    code: |
+      ALTER TABLE suppliers ADD COLUMN phone VARCHAR(30);
+      ALTER TABLE suppliers MODIFY COLUMN name VARCHAR(200) NOT NULL;
+      ALTER TABLE suppliers ALTER COLUMN rating SET DEFAULT 3;
+    explanation:
+      - lines: [1, 1]
+        clause: ADD COLUMN phone VARCHAR(30)
+        text: Kolom baru ditambahkan di akhir tabel dan berisi NULL untuk seluruh baris lama.
+      - lines: [2, 2]
+        clause: MODIFY COLUMN name VARCHAR(200) NOT NULL
+        text: Inilah jebakannya. MySQL mengganti seluruh definisi kolom, jadi NOT NULL yang tidak ikut ditulis ulang akan hilang diam-diam.
+      - lines: [3, 3]
+        clause: ALTER COLUMN rating SET DEFAULT 3
+        text: Khusus mengubah nilai bawaan, MySQL memakai ALTER COLUMN dan tidak menulis ulang tabel.
+  - dialects: [sqlite]
+    note: SQLite tidak bisa mengubah tipe kolom sama sekali. Satu-satunya cara adalah membangun ulang tabelnya, dan itu memang cara resmi yang dianjurkan.
+    code: |
+      ALTER TABLE suppliers ADD COLUMN phone TEXT;
+
+      CREATE TABLE suppliers_baru (
+        id     INTEGER PRIMARY KEY,
+        name   TEXT NOT NULL,
+        rating INTEGER NOT NULL DEFAULT 3
+      );
+      INSERT INTO suppliers_baru (id, name, rating)
+      SELECT id, name, rating FROM suppliers;
+      DROP TABLE suppliers;
+      ALTER TABLE suppliers_baru RENAME TO suppliers;
+    explanation:
+      - lines: [1, 1]
+        clause: ADD COLUMN phone TEXT
+        text: Menambah kolom adalah satu-satunya perubahan struktur yang didukung langsung. RENAME COLUMN juga bisa sejak versi 3.25, tetapi mengubah tipe tidak.
+      - lines: [3, 7]
+        clause: CREATE TABLE suppliers_baru (…)
+        text: Buat tabel dengan bentuk yang diinginkan memakai nama sementara.
+      - lines: [8, 9]
+        clause: INSERT INTO suppliers_baru SELECT …
+        text: Pindahkan datanya. Di sini kolom bisa diubah tipenya, diubah urutannya, atau dibuang sama sekali.
+      - lines: [10, 11]
+        clause: DROP TABLE lalu RENAME TO
+        text: Buang tabel lama dan beri nama aslinya ke tabel baru. Lakukan seluruh rangkaian ini di dalam satu transaksi agar tidak berhenti di tengah.
+notes:
+  - type: warning
+    title: MODIFY COLUMN di MySQL menghapus yang tidak ditulis
+    text: Perintah MODIFY mengganti definisi kolom secara utuh. Bila NOT NULL, DEFAULT, atau komentar tidak ikut disalin ke perintah barunya, semuanya hilang tanpa peringatan. Selalu lihat definisi kolom yang sekarang dengan SHOW CREATE TABLE sebelum mengubahnya.
+  - type: warning
+    title: ALTER bisa mengunci tabel lama sekali
+    text: Pada tabel besar, perubahan yang memaksa penulisan ulang bisa mengunci tabel selama berjam-jam. Periksa dulu apakah operasinya termasuk yang cepat di versi database kamu, dan untuk tabel produksi pertimbangkan pt-online-schema-change atau gh-ost di MySQL.
+  - type: warning
+    title: Jangan lupa ikutkan tabel anaknya
+    text: Pada cara membangun ulang tabel di SQLite, foreign key dari tabel lain yang menunjuk tabel ini perlu diperhatikan. Matikan sementara dengan PRAGMA foreign_keys sebelum DROP, lalu nyalakan lagi dan periksa dengan PRAGMA foreign_key_check.
+  - type: tip
+    text: Di PostgreSQL, perintah DDL berada di dalam transaksi, sehingga beberapa ALTER bisa dibungkus BEGIN dan ROLLBACK bila salah satu gagal. MySQL tidak begitu, setiap DDL langsung permanen dan memutus transaksi yang sedang berjalan.

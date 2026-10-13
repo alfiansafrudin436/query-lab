@@ -1,0 +1,88 @@
+title: Baca rencana eksekusi dengan EXPLAIN
+summary: Lihat bagaimana database berencana menjalankan query, dan apakah index benar-benar terpakai.
+whenToUse: Saat sebuah query terasa lambat dan kamu perlu tahu sebabnya sebelum menebak-nebak menambah index.
+difficulty: advanced
+tags: [explain, explain analyze, query plan, seq scan, performa]
+popularity: 9
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [create-index, unused-index, keyset-pagination]
+variants:
+  - dialects: [postgresql]
+    note: EXPLAIN hanya memperkirakan, sedangkan EXPLAIN ANALYZE benar-benar menjalankan query dan melaporkan waktu nyatanya.
+    code: |
+      EXPLAIN ANALYZE
+      SELECT o.id, c.name
+      FROM orders o
+      JOIN customers c ON c.id = o.customer_id
+      WHERE o.status = 'paid'
+      ORDER BY o.ordered_at DESC;
+    explanation:
+      - lines: [1, 1]
+        clause: EXPLAIN ANALYZE
+        text: Query di bawahnya benar-benar dijalankan, lalu waktu dan jumlah baris sesungguhnya dilaporkan. Tambahkan kata BUFFERS untuk melihat berapa banyak data yang dibaca dari disk.
+      - lines: [2, 4]
+        clause: Query yang diperiksa
+        text: Tulis query apa adanya di bawah EXPLAIN. Tidak ada yang perlu diubah dari query aslinya.
+      - lines: [5, 5]
+        clause: Yang dicari pada hasilnya
+        text: Perhatikan Seq Scan pada tabel besar, yang berarti seluruh tabel dibaca. Index Scan menandakan index terpakai.
+      - lines: [6, 6]
+        clause: Bandingkan perkiraan dan kenyataan
+        text: Selisih jauh antara rows perkiraan dan actual rows menandakan statistik tabel sudah basi. Jalankan ANALYZE pada tabel itu untuk menyegarkannya.
+  - dialects: [mysql]
+    note: EXPLAIN ANALYZE baru tersedia sejak MySQL 8.0.18. Pada versi lebih lama, hanya ada EXPLAIN biasa yang sifatnya perkiraan.
+    code: |
+      EXPLAIN ANALYZE
+      SELECT o.id, c.name
+      FROM orders o
+      JOIN customers c ON c.id = o.customer_id
+      WHERE o.status = 'paid'
+      ORDER BY o.ordered_at DESC;
+    explanation:
+      - lines: [1, 1]
+        clause: EXPLAIN ANALYZE
+        text: Menjalankan query lalu melaporkan waktu nyatanya. Tanpa kata ANALYZE, MySQL hanya memperkirakan tanpa menjalankan apa pun.
+      - lines: [2, 4]
+        clause: Query yang diperiksa
+        text: Tulis query apa adanya di bawah EXPLAIN.
+      - lines: [5, 5]
+        clause: Yang dicari pada hasilnya
+        text: Kolom type bernilai ALL berarti seluruh tabel dipindai. Kolom key menunjukkan index yang dipakai, dan NULL di situ berarti tidak ada index yang terpakai.
+      - lines: [6, 6]
+        clause: Perhatikan kolom Extra
+        text: Keterangan seperti Using filesort atau Using temporary menandakan pengurutan atau tabel sementara dikerjakan terpisah, yang sering jadi sumber lambatnya query.
+  - dialects: [sqlite]
+    note: SQLite tidak punya EXPLAIN ANALYZE. Yang tersedia adalah EXPLAIN QUERY PLAN yang ringkas dan mudah dibaca.
+    code: |
+      EXPLAIN QUERY PLAN
+      SELECT o.id, c.name
+      FROM orders o
+      JOIN customers c ON c.id = o.customer_id
+      WHERE o.status = 'paid'
+      ORDER BY o.ordered_at DESC;
+    explanation:
+      - lines: [1, 1]
+        clause: EXPLAIN QUERY PLAN
+        text: Menampilkan rencana secara ringkas tanpa menjalankan query. Menulis EXPLAIN saja tanpa QUERY PLAN akan menampilkan bytecode mesin virtual yang jauh lebih sulit dibaca.
+      - lines: [2, 4]
+        clause: Query yang diperiksa
+        text: Tulis query apa adanya di bawah EXPLAIN QUERY PLAN.
+      - lines: [5, 5]
+        clause: Yang dicari pada hasilnya
+        text: Keterangan SCAN berarti seluruh tabel dibaca, sedangkan SEARCH berarti index dipakai untuk melompat ke baris yang tepat.
+      - lines: [6, 6]
+        clause: Perhatikan USE TEMP B-TREE
+        text: Keterangan ini berarti SQLite membangun struktur sementara untuk mengurutkan, pertanda ORDER BY tidak terbantu index mana pun.
+notes:
+  - type: warning
+    title: EXPLAIN ANALYZE benar-benar menjalankan query
+    text: Pada perintah yang mengubah data, EXPLAIN ANALYZE akan sungguh-sungguh mengubahnya. Bungkus dengan BEGIN dan akhiri ROLLBACK bila yang diperiksa adalah UPDATE atau DELETE.
+  - type: warning
+    title: Seq Scan tidak selalu buruk
+    text: Pada tabel kecil, membaca seluruh tabel justru lebih cepat daripada membaca index lalu melompat ke barisnya. Database memilih itu dengan sengaja. Jangan menambah index hanya karena melihat kata scan pada rencana eksekusi.
+  - type: tip
+    title: Uji dengan data yang sepadan
+    text: Rencana eksekusi atas tabel berisi sepuluh baris hampir tidak berarti apa-apa, karena pilihan database berubah mengikuti ukuran data. Ujilah pada salinan data yang jumlahnya mendekati produksi.
+  - type: info
+    text: Hasil EXPLAIN tidak ditampilkan di sini karena bentuknya berbeda jauh antar dialek, bahkan antar versi, dan ikut berubah mengikuti isi tabel. Jalankan sendiri pada database kamu untuk melihat hasil yang sebenarnya.

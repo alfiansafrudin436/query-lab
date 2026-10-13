@@ -1,0 +1,103 @@
+title: Cari index yang tidak pernah terpakai
+summary: Temukan index yang hanya memperlambat penulisan dan memakan ruang, tanpa pernah membantu satu query pun.
+whenToUse: Saat merapikan database yang sudah lama berjalan, dan ingin tahu index mana yang aman dibuang.
+difficulty: advanced
+tags: [index, unused index, pg_stat, performance_schema, perawatan]
+popularity: 5
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [create-index, explain-analyze, keyset-pagination]
+variants:
+  - dialects: [postgresql]
+    note: PostgreSQL mencatat berapa kali tiap index dipakai sejak statistik terakhir direset, jadi datanya benar-benar berdasarkan pemakaian.
+    code: |
+      SELECT
+        relname AS tabel,
+        indexrelname AS index_name,
+        idx_scan AS jumlah_pemakaian,
+        pg_size_pretty(pg_relation_size(indexrelid)) AS ukuran
+      FROM pg_stat_user_indexes
+      WHERE idx_scan = 0
+      ORDER BY pg_relation_size(indexrelid) DESC;
+    explanation:
+      - lines: [1, 3]
+        clause: relname dan indexrelname
+        text: Nama tabel beserta nama index yang menempel padanya.
+      - lines: [4, 4]
+        clause: idx_scan AS jumlah_pemakaian
+        text: Berapa kali index ini dipakai untuk mencari baris. Angka nol berarti belum pernah terpakai sejak statistik terakhir direset.
+      - lines: [5, 5]
+        clause: pg_size_pretty(pg_relation_size(…))
+        text: Ukuran index dalam bentuk yang mudah dibaca, agar yang paling boros bisa diprioritaskan.
+      - lines: [6, 7]
+        clause: FROM pg_stat_user_indexes WHERE idx_scan = 0
+        text: Tabel statistik bawaan yang hanya memuat index buatan pengguna, jadi index sistem tidak ikut terbawa.
+      - lines: [8, 8]
+        clause: ORDER BY ukuran DESC
+        text: Yang paling besar lebih dulu, karena itu yang paling banyak membebaskan ruang bila dibuang.
+  - dialects: [mysql]
+    note: Skema sys menyediakan tampilan siap pakai, dengan syarat performance_schema aktif sejak server dinyalakan.
+    code: |
+      SELECT
+        object_schema AS basis_data,
+        object_name AS tabel,
+        index_name
+      FROM sys.schema_unused_indexes
+      WHERE object_schema NOT IN ('mysql', 'sys')
+      ORDER BY object_schema, object_name;
+    explanation:
+      - lines: [1, 4]
+        clause: object_schema, object_name, index_name
+        text: Tampilan ini sudah menyaring sendiri index yang tidak terpakai, jadi kolomnya tinggal ditampilkan.
+      - lines: [5, 5]
+        clause: FROM sys.schema_unused_indexes
+        text: Tampilan bawaan MySQL yang dibangun di atas performance_schema. Bila hasilnya selalu kosong, besar kemungkinan performance_schema sedang mati.
+      - lines: [6, 6]
+        clause: WHERE object_schema NOT IN (…)
+        text: Buang basis data bawaan agar yang tersisa hanya milik aplikasi.
+      - lines: [7, 7]
+        clause: ORDER BY object_schema, object_name
+        text: Urutkan agar mudah ditelusuri per tabel.
+  - dialects: [sqlite]
+    note: SQLite tidak mencatat pemakaian index sama sekali. Yang bisa dilakukan hanya mendaftar index yang ada, lalu memeriksanya satu per satu.
+    code: |
+      ANALYZE;
+
+      SELECT
+        m.tbl_name AS tabel,
+        m.name AS index_name,
+        s.stat AS statistik
+      FROM sqlite_master m
+      LEFT JOIN sqlite_stat1 s ON s.idx = m.name
+      WHERE m.type = 'index'
+        AND m.sql IS NOT NULL
+      ORDER BY m.tbl_name, m.name;
+    explanation:
+      - lines: [1, 1]
+        clause: ANALYZE
+        text: Mengisi tabel sqlite_stat1 dengan statistik sebaran data. Tanpa ini, kolom statistiknya kosong.
+      - lines: [3, 6]
+        clause: m.tbl_name, m.name, s.stat
+        text: Nama tabel, nama index, dan statistiknya. Kolom stat menunjukkan perkiraan jumlah baris per nilai index, yang menandakan seberapa selektif index itu.
+      - lines: [7, 8]
+        clause: FROM sqlite_master LEFT JOIN sqlite_stat1
+        text: Daftar seluruh objek database digabung dengan statistiknya.
+      - lines: [9, 10]
+        clause: WHERE m.type = 'index' AND m.sql IS NOT NULL
+        text: Hanya index, dan syarat sql tidak NULL membuang index yang dibuat otomatis oleh UNIQUE atau PRIMARY KEY, yang memang tidak boleh dihapus.
+      - lines: [11, 11]
+        clause: ORDER BY m.tbl_name, m.name
+        text: Urutkan per tabel agar mudah ditelusuri.
+notes:
+  - type: warning
+    title: Angka nol belum tentu berarti tidak berguna
+    text: Statistik hanya mencatat sejak terakhir direset atau sejak server menyala. Index yang hanya dipakai laporan bulanan atau proses akhir tahun bisa tampak tidak terpakai. Amati paling tidak satu siklus penuh sebelum menghapus apa pun.
+  - type: warning
+    title: SQLite memang tidak bisa menjawab ini
+    text: Berbeda dari dua dialek lainnya, SQLite tidak menyimpan hitungan pemakaian index. Query di atas hanya mendaftar index yang ada, bukan membuktikan ada yang tidak terpakai. Pembuktiannya harus lewat EXPLAIN QUERY PLAN pada tiap query penting.
+  - type: tip
+    title: Ganti nama dulu, jangan langsung hapus
+    text: Menghapus index yang ternyata penting bisa membuat query melambat drastis dan membangunnya kembali pada tabel besar butuh waktu lama. Di PostgreSQL, index bisa dinonaktifkan dulu lewat kolom indisvalid, agar mudah dikembalikan.
+  - type: info
+    title: Index kembar juga perlu dicari
+    text: Selain yang tidak terpakai, index yang tumpang tindih juga memboroskan. Index atas kolom a sudah tercakup oleh index atas (a, b), sehingga yang pertama biasanya bisa dibuang. MySQL menyediakan sys.schema_redundant_indexes untuk ini.

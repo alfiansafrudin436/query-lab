@@ -1,0 +1,111 @@
+title: Atur isolation level transaksi
+summary: Tentukan seberapa terpengaruh transaksimu oleh perubahan sesi lain yang berjalan bersamaan.
+whenToUse: Saat laporan harus membaca potret data yang konsisten, atau saat perhitungan saldo tidak boleh terganggu transaksi lain.
+difficulty: advanced
+tags: [isolation level, serializable, repeatable read, read committed, konkurensi]
+popularity: 5
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [begin-commit-rollback, select-for-update, savepoint]
+variants:
+  - dialects: [postgresql]
+    note: Bawaannya READ COMMITTED. PostgreSQL tidak pernah mengizinkan dirty read, jadi READ UNCOMMITTED diperlakukan sama seperti READ COMMITTED.
+    code: |
+      BEGIN ISOLATION LEVEL REPEATABLE READ;
+
+      SELECT SUM(stock) AS total_stok
+      FROM products;
+
+      SELECT SUM(stock) AS total_stok_lagi
+      FROM products;
+
+      COMMIT;
+    explanation:
+      - lines: [1, 1]
+        clause: BEGIN ISOLATION LEVEL REPEATABLE READ
+        text: Tingkat isolasi ditetapkan saat transaksi dibuka. Pada tingkat ini, transaksi bekerja atas potret data seperti saat ia dimulai.
+      - lines: [3, 4]
+        clause: Pembacaan pertama
+        text: Menghasilkan angka total stok pada saat itu.
+      - lines: [6, 7]
+        clause: Pembacaan kedua
+        text: Hasilnya dijamin sama persis dengan pembacaan pertama, walau sesi lain sempat mengubah dan menyimpan data di antara keduanya.
+      - lines: [9, 9]
+        clause: COMMIT
+        text: Menutup transaksi. Di luar transaksi, pembacaan berikutnya kembali melihat data terkini.
+  - dialects: [mysql]
+    note: Bawaan MySQL pada InnoDB adalah REPEATABLE READ, berbeda dari kebanyakan database lain yang memakai READ COMMITTED.
+    code: |
+      SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+      START TRANSACTION;
+
+      SELECT SUM(stock) AS total_stok
+      FROM products;
+
+      SELECT SUM(stock) AS total_stok_lagi
+      FROM products;
+
+      COMMIT;
+    explanation:
+      - lines: [1, 1]
+        clause: SET TRANSACTION ISOLATION LEVEL …
+        text: Ditulis sebelum transaksi dibuka, dan hanya berlaku untuk transaksi berikutnya. Tambahkan kata SESSION bila ingin berlaku untuk seluruh koneksi.
+      - lines: [3, 3]
+        clause: START TRANSACTION
+        text: Transaksinya baru dimulai di sini, memakai tingkat isolasi yang sudah ditetapkan di atas.
+      - lines: [5, 9]
+        clause: Dua kali pembacaan yang sama
+        text: Pada REPEATABLE READ, kedua pembacaan menghasilkan angka yang sama karena keduanya membaca potret yang sama.
+      - lines: [11, 11]
+        clause: COMMIT
+        text: Menutup transaksi dan melepas potret tersebut.
+  - dialects: [sqlite]
+    note: SQLite praktis hanya punya satu tingkat isolasi yang setara SERIALIZABLE, karena penulis memang hanya boleh satu pada satu waktu.
+    code: |
+      PRAGMA read_uncommitted = 0;
+
+      BEGIN;
+
+      SELECT SUM(stock) AS total_stok
+      FROM products;
+
+      SELECT SUM(stock) AS total_stok_lagi
+      FROM products;
+
+      COMMIT;
+    explanation:
+      - lines: [1, 1]
+        clause: PRAGMA read_uncommitted = 0
+        text: Satu-satunya pengatur isolasi di SQLite, dan nilai 0 adalah bawaannya. Mengubahnya ke 1 hanya berdampak bila beberapa koneksi berbagi cache yang sama.
+      - lines: [3, 3]
+        clause: BEGIN
+        text: Transaksi dibuka tanpa pilihan tingkat isolasi, karena memang tidak ada sintaksnya.
+      - lines: [5, 9]
+        clause: Dua kali pembacaan yang sama
+        text: Hasilnya konsisten karena penulis lain tidak bisa menyimpan perubahan selagi transaksi baca ini berjalan.
+      - lines: [11, 11]
+        clause: COMMIT
+        text: Menutup transaksi.
+sample:
+  description: Ringkasan singkat bedanya tiap tingkat. Baris paling atas paling longgar dan paling cepat, paling bawah paling ketat dan paling sering bentrok.
+  output:
+    caption: Masalah yang masih mungkin terjadi
+    columns: [tingkat, dirty read, non-repeatable read, phantom read]
+    rows:
+      - [READ UNCOMMITTED, Mungkin, Mungkin, Mungkin]
+      - [READ COMMITTED, Tidak, Mungkin, Mungkin]
+      - [REPEATABLE READ, Tidak, Tidak, Mungkin]
+      - [SERIALIZABLE, Tidak, Tidak, Tidak]
+notes:
+  - type: warning
+    title: Bawaannya berbeda-beda
+    text: PostgreSQL memakai READ COMMITTED, MySQL InnoDB memakai REPEATABLE READ, dan SQLite setara SERIALIZABLE. Kode yang benar di satu database bisa berperilaku lain di database berikutnya, jadi jangan berasumsi tanpa memeriksa.
+  - type: warning
+    title: Makin ketat berarti makin sering gagal
+    text: Pada SERIALIZABLE, PostgreSQL bisa membatalkan transaksi dengan error serialization failure walau tidak ada yang salah pada querymu. Aplikasi wajib siap mengulang transaksi yang gagal seperti itu.
+  - type: info
+    title: REPEATABLE READ di MySQL tidak persis sama
+    text: MySQL pada tingkat ini sudah mencegah sebagian besar phantom read lewat mekanisme gap lock, jadi perilakunya lebih ketat daripada yang tertulis di standar. Perbedaan halus seperti ini yang membuat pengujian langsung lebih bisa dipercaya daripada tabel teori.
+  - type: tip
+    text: Mayoritas aplikasi cukup memakai tingkat bawaan. Naikkan hanya bila memang terbukti ada masalah konsistensi, karena isolasi yang lebih ketat berarti lebih banyak kunci, lebih banyak menunggu, dan lebih banyak transaksi yang perlu diulang.

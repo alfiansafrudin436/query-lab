@@ -16,7 +16,7 @@ const CategoriesPage = async () => {
       <PageHeader
         breadcrumb={[{ label: 'Beranda', href: '/' }, { label: 'Kategori' }]}
         title="Kategori"
-        description={`${categories.length} topik SQL, dari dasar sampai analitik. Kategori bertanda “Segera hadir” sedang disiapkan.`}
+        description={`${categories.length} topik SQL, dari dasar SELECT sampai resep analitik.`}
       />
       <CategoryGrid categories={categories} headingLevel="h2" />
     </div>

@@ -1,0 +1,65 @@
+title: Funnel konversi bertahap
+summary: Hitung berapa banyak customer yang bertahan di tiap tahap, dari punya akun sampai pesanan terbayar.
+whenToUse: Saat ingin tahu di tahap mana calon pembeli paling banyak berguguran, misalnya untuk memperbaiki alur checkout.
+difficulty: intermediate
+tags: [funnel, konversi, union all, tahap, analitik]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [cohort-retention, rfm-segmentation, count-distinct]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT '1. Punya akun' AS tahap, COUNT(*) AS jumlah
+      FROM customers
+      UNION ALL
+      SELECT '2. Pernah memesan', COUNT(DISTINCT o.customer_id)
+      FROM orders o
+      UNION ALL
+      SELECT '3. Pesanan dibayar', COUNT(DISTINCT o.customer_id)
+      FROM orders o
+      WHERE o.status = 'paid';
+    explanation:
+      - lines: [1, 2]
+        clause: 'Tahap 1: COUNT(*) FROM customers'
+        text: Puncak funnel, yaitu seluruh customer yang ada. Angka inilah pembagi untuk menghitung persentase tahap berikutnya.
+      - lines: [3, 3]
+        clause: UNION ALL
+        text: Menyusun hasil tiap tahap menjadi satu tabel. Pakai UNION ALL, bukan UNION, agar dua tahap yang kebetulan berangka sama tidak digabung menjadi satu baris.
+      - lines: [4, 5]
+        clause: 'Tahap 2: COUNT(DISTINCT o.customer_id)'
+        text: Berapa customer yang sampai memesan. DISTINCT wajib, karena yang dihitung adalah orangnya, bukan jumlah pesanannya.
+      - lines: [7, 9]
+        clause: 'Tahap 3: ditambah WHERE o.status'
+        text: Tahap terakhir mempersempit syaratnya. Tiap tahap harus merupakan bagian dari tahap sebelumnya, agar angkanya menurun dan funnel-nya masuk akal.
+      - lines: [1, 1]
+        clause: Awalan angka pada nama tahap
+        text: Nama tahap diberi nomor di depan agar urutannya benar saat diurutkan secara alfabetis, karena UNION ALL sendiri tidak menjamin urutan.
+sample:
+  description: Dari 4 customer, hanya 2 yang pernah memesan, dan keduanya punya pesanan terbayar. Kebocoran terbesar ada di tahap pertama ke kedua.
+  input:
+    - caption: orders
+      columns: [id, customer_id, status]
+      rows:
+        - [1, 1, paid]
+        - [2, 2, paid]
+        - [3, 1, pending]
+  output:
+    caption: Hasil
+    columns: [tahap, jumlah]
+    rows:
+      - ['1. Punya akun', 4]
+      - ['2. Pernah memesan', 2]
+      - ['3. Pesanan dibayar', 2]
+notes:
+  - type: warning
+    title: Tiap tahap harus benar-benar bagian tahap sebelumnya
+    text: Bila syarat tahap ketiga tidak mensyaratkan tahap kedua, angkanya bisa naik turun dan funnel kehilangan makna. Periksa bahwa setiap tahap benar-benar mempersempit, bukan sekadar menghitung hal lain.
+  - type: warning
+    title: Funnel ini tidak memperhatikan urutan waktu
+    text: Query ini hanya memeriksa apakah sesuatu pernah terjadi, bukan apakah terjadi secara berurutan. Untuk funnel yang menuntut urutan, misalnya lihat produk lalu checkout dalam satu sesi, perlu dibandingkan stempel waktunya antar tahap.
+  - type: tip
+    title: Menambahkan kolom persentase
+    text: Bungkus query ini dalam CTE, lalu pakai window function untuk membagi tiap angka dengan nilai baris pertama, seperti pada contoh persentase dari total. Dengan begitu tingkat kebocoran tiap tahap langsung terbaca.
+  - type: info
+    text: Bentuk lain yang lebih luwes adalah menghitung seluruh tahap dalam satu kali baca memakai agregasi bersyarat, misalnya COUNT(DISTINCT CASE WHEN … END) untuk tiap tahap. Lebih cepat pada tabel besar karena tabelnya tidak dibaca berulang kali.

@@ -1,0 +1,67 @@
+title: Foreign key dan perilaku ON DELETE
+summary: Tentukan apa yang terjadi pada baris anak ketika induknya dihapus, antara ikut terhapus atau justru menghalangi.
+whenToUse: Saat merancang relasi antar tabel dan perlu memutuskan apakah penghapusan induk boleh merembet ke data anaknya.
+difficulty: intermediate
+tags: [foreign key, on delete, cascade, restrict, referential integrity]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [create-table, delete-related, anti-join]
+variants:
+  - dialects: [postgresql, sqlite]
+    note: Keduanya menerima REFERENCES di level kolom. Khusus SQLite, foreign key hanya ditegakkan bila PRAGMA foreign_keys dinyalakan di setiap koneksi.
+    code: |
+      CREATE TABLE supplier_products (
+        id          INTEGER PRIMARY KEY,
+        supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+        product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT
+      );
+    explanation:
+      - lines: [3, 3]
+        clause: REFERENCES suppliers(id) ON DELETE CASCADE
+        text: Menghapus satu supplier otomatis menghapus seluruh baris penghubungnya. Cocok untuk data yang memang tidak punya arti tanpa induknya.
+      - lines: [4, 4]
+        clause: REFERENCES products(id) ON DELETE RESTRICT
+        text: Kebalikannya, penghapusan produk akan ditolak selama masih dipakai di sini. Produk dilindungi karena ia punya arti sendiri di luar relasi ini.
+      - lines: [2, 2]
+        clause: id INTEGER PRIMARY KEY
+        text: Tabel penghubung tetap punya kunci sendiri, agar barisnya bisa dirujuk langsung bila diperlukan.
+      - lines: [5, 5]
+        clause: Tanda kurung penutup
+        text: Dua perilaku berbeda boleh dipakai dalam satu tabel yang sama, sesuai arti masing-masing relasi.
+  - dialects: [mysql]
+    note: MySQL mengabaikan REFERENCES yang ditulis di level kolom, jadi foreign key wajib ditulis sebagai constraint tabel.
+    code: |
+      CREATE TABLE supplier_products (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        supplier_id INT NOT NULL,
+        product_id  INT NOT NULL,
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+      );
+    explanation:
+      - lines: [3, 4]
+        clause: Kolom ditulis tanpa REFERENCES
+        text: Inilah bedanya dengan dialek lain. Menulis REFERENCES di baris kolom akan diterima MySQL tanpa error, tetapi diabaikan sepenuhnya sehingga relasinya tidak pernah terbentuk.
+      - lines: [5, 5]
+        clause: FOREIGN KEY (supplier_id) … ON DELETE CASCADE
+        text: Menghapus satu supplier otomatis menghapus seluruh baris penghubungnya.
+      - lines: [6, 6]
+        clause: FOREIGN KEY (product_id) … ON DELETE RESTRICT
+        text: Penghapusan produk ditolak selama masih dipakai di sini. Perlu dicatat, perilaku ini hanya berlaku pada engine InnoDB.
+      - lines: [7, 7]
+        clause: Tanda kurung penutup
+        text: Dua perilaku berbeda boleh dipakai dalam satu tabel yang sama, sesuai arti masing-masing relasi.
+notes:
+  - type: warning
+    title: SQLite mematikan foreign key secara bawaan
+    text: Demi menjaga kecocokan dengan versi lama, SQLite tidak menegakkan foreign key kecuali setiap koneksi menjalankan PRAGMA foreign_keys = ON. Tanpa itu, constraint-nya tersimpan rapi tapi tidak pernah bekerja, dan data yatim bisa masuk tanpa ketahuan.
+  - type: warning
+    title: CASCADE bisa merembet jauh
+    text: Bila tabel anak juga punya anak yang memakai CASCADE, satu DELETE bisa menghapus data berlapis-lapis sekaligus. Telusuri dulu rantainya sebelum memasang CASCADE pada tabel inti.
+  - type: tip
+    title: Pilihan perilaku lainnya
+    text: Selain CASCADE dan RESTRICT, tersedia SET NULL untuk mengosongkan kolomnya, dan SET DEFAULT untuk mengembalikannya ke nilai bawaan. NO ACTION adalah bawaannya dan di praktiknya mirip RESTRICT.
+  - type: warning
+    title: Foreign key tidak otomatis berindex
+    text: Di PostgreSQL, kolom foreign key tidak dibuatkan index sendiri, sehingga pemeriksaan saat menghapus induk bisa memindai seluruh tabel anak. MySQL membuatkan indexnya otomatis. Buat index pada kolom foreign key di PostgreSQL secara manual.

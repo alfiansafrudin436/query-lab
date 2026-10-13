@@ -6,7 +6,7 @@ tags: [duplikat, delete, dedupe, bersih data]
 popularity: 8
 createdAt: '2026-10-05'
 updatedAt: '2026-10-13'
-related: [upsert, anti-join, subquery-in-exists]
+related: [upsert, find-duplicates, anti-join]
 variants:
   - dialects: [postgresql]
     code: |

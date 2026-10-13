@@ -1,0 +1,106 @@
+title: Ubah baris hasil query jadi JSON
+summary: Bungkus pesanan tiap customer menjadi satu array JSON, siap dikirim langsung ke aplikasi.
+whenToUse: Saat API perlu data bersarang dan kamu ingin database yang merangkainya, bukan aplikasi yang menyusunnya dari banyak baris.
+difficulty: advanced
+tags: [json_agg, json_object, json_arrayagg, api, data bersarang]
+popularity: 6
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [json-array-to-rows, string-agg, json-extract-field]
+variants:
+  - dialects: [postgresql]
+    note: json_build_object menerima pasangan nama dan nilai bergantian, sedangkan json_agg mengumpulkannya menjadi array.
+    code: |
+      SELECT
+        c.name,
+        json_agg(json_build_object('id', o.id, 'status', o.status) ORDER BY o.id) AS pesanan
+      FROM customers c
+      JOIN orders o ON o.customer_id = c.id
+      GROUP BY c.id, c.name
+      ORDER BY c.name;
+    explanation:
+      - lines: [3, 3]
+        clause: json_build_object('id', o.id, …)
+        text: Membentuk satu objek JSON per baris. Argumennya berpasangan, yaitu nama field lalu nilainya, bergantian.
+      - lines: [3, 3]
+        clause: json_agg(… ORDER BY o.id)
+        text: Fungsi agregat yang mengumpulkan seluruh objek dalam satu kelompok menjadi array JSON. Klausa ORDER BY di dalamnya membuat urutan isi array pasti.
+      - lines: [4, 5]
+        clause: JOIN orders o ON o.customer_id = c.id
+        text: INNER JOIN membuat customer tanpa pesanan tidak muncul sama sekali.
+      - lines: [6, 7]
+        clause: GROUP BY c.id, c.name
+        text: Satu baris per customer, dengan seluruh pesanannya terangkum dalam satu kolom.
+  - dialects: [mysql]
+    note: MySQL memakai JSON_OBJECT dan JSON_ARRAYAGG, tetapi JSON_ARRAYAGG tidak menerima ORDER BY di dalamnya.
+    code: |
+      SELECT
+        c.name,
+        JSON_ARRAYAGG(JSON_OBJECT('id', o.id, 'status', o.status)) AS pesanan
+      FROM customers c
+      JOIN orders o ON o.customer_id = c.id
+      GROUP BY c.id, c.name
+      ORDER BY c.name;
+    explanation:
+      - lines: [3, 3]
+        clause: JSON_OBJECT('id', o.id, …)
+        text: Membentuk satu objek JSON per baris, dengan argumen berpasangan seperti di PostgreSQL.
+      - lines: [3, 3]
+        clause: JSON_ARRAYAGG(…)
+        text: Mengumpulkan objek dalam satu kelompok menjadi array. Urutan isinya tidak dijamin, karena MySQL tidak menerima ORDER BY di dalam fungsi ini.
+      - lines: [4, 5]
+        clause: JOIN orders o ON o.customer_id = c.id
+        text: INNER JOIN membuat customer tanpa pesanan tidak muncul sama sekali.
+      - lines: [6, 7]
+        clause: GROUP BY c.id, c.name
+        text: Satu baris per customer, dengan seluruh pesanannya terangkum dalam satu kolom.
+  - dialects: [sqlite]
+    note: Nama fungsinya mirip MySQL tetapi huruf kecil, dan tersedia sejak modul JSON1 aktif secara bawaan di versi 3.38.
+    code: |
+      SELECT
+        c.name,
+        json_group_array(json_object('id', o.id, 'status', o.status)) AS pesanan
+      FROM customers c
+      JOIN orders o ON o.customer_id = c.id
+      GROUP BY c.id, c.name
+      ORDER BY c.name;
+    explanation:
+      - lines: [3, 3]
+        clause: json_object('id', o.id, …)
+        text: Membentuk satu objek JSON per baris, dengan argumen berpasangan.
+      - lines: [3, 3]
+        clause: json_group_array(…)
+        text: Mengumpulkan objek menjadi array JSON. Penting memakai json_object di dalamnya, karena merangkai teks secara manual akan menghasilkan kutip ganda bertumpuk.
+      - lines: [4, 5]
+        clause: JOIN orders o ON o.customer_id = c.id
+        text: INNER JOIN membuat customer tanpa pesanan tidak muncul sama sekali.
+      - lines: [6, 7]
+        clause: GROUP BY c.id, c.name
+        text: Satu baris per customer, dengan seluruh pesanannya terangkum dalam satu kolom.
+sample:
+  description: Rina punya dua pesanan sehingga array-nya berisi dua objek. Sari dan Rina W. tidak muncul karena belum pernah memesan.
+  input:
+    - caption: orders
+      columns: [id, customer_id, status]
+      rows:
+        - [1, 1, paid]
+        - [2, 2, paid]
+        - [3, 1, pending]
+  output:
+    caption: Hasil
+    columns: [name, pesanan]
+    rows:
+      - [Dimas Pratama, '[{"id":2,"status":"paid"}]']
+      - [Rina Wijaya, '[{"id":1,"status":"paid"},{"id":3,"status":"pending"}]']
+notes:
+  - type: warning
+    title: Jangan merangkai JSON dengan penggabungan teks
+    text: Menyusun JSON dengan menyambung string akan rusak begitu datanya memuat tanda kutip, garis miring terbalik, atau baris baru. Fungsi JSON bawaan sudah menangani pelolosan karakter dengan benar, jadi selalu pakai itu.
+  - type: warning
+    title: Customer tanpa pesanan menghilang
+    text: Ganti ke LEFT JOIN bila mereka perlu tetap muncul. Hasilnya bukan array kosong melainkan array berisi satu objek penuh null, jadi bungkus dengan CASE atau saring dengan json_agg yang diberi FILTER di PostgreSQL.
+  - type: tip
+    title: Hati-hati dengan ukuran hasilnya
+    text: Merangkum ribuan baris anak ke dalam satu sel JSON membuat satu baris hasil menjadi sangat besar dan berat dikirim. Pola ini paling cocok untuk data anak yang jumlahnya sedikit dan terbatas.
+  - type: info
+    text: PostgreSQL juga punya row_to_json untuk mengubah seluruh baris menjadi objek tanpa menyebut field satu per satu, serta versi jsonb dari setiap fungsi ini yang biasanya lebih disarankan.
