@@ -36,12 +36,30 @@ describe('buildDdl', () => {
       expect(POSTGRES_SEQUENCE_FIX).toContain(`'${table.name}_id_seq'`)
     }
   })
+
+  it('memakai tipe JSON khas tiap dialek untuk kolom metadata', () => {
+    expect(buildDdl('postgresql')).toContain('metadata     JSONB')
+    expect(buildDdl('mysql')).toContain('metadata     JSON')
+    // SQLite tidak punya tipe JSON, jadi disimpan sebagai teks.
+    expect(buildDdl('sqlite')).toContain('metadata     TEXT')
+  })
 })
 
 describe('buildSeed', () => {
   it('tidak pernah menanam tanggal kalender, agar contoh rentang waktu tidak basi', () => {
     for (const dialect of DIALECTS) {
       expect(buildSeed(dialect)).not.toMatch(/\d{4}-\d{2}-\d{2}/)
+    }
+  })
+
+  it('mengisi metadata JSON, termasuk satu pesanan tanpa metadata', () => {
+    for (const dialect of DIALECTS) {
+      const seed = buildSeed(dialect)
+      expect(seed).toContain('INSERT INTO orders (id, customer_id, status, ordered_at, metadata)')
+      expect(seed).toContain('"channel": "web"')
+      expect(seed).toContain('"tags": ["promo", "bundling"]')
+      // Pesanan ketiga sengaja NULL agar contoh JSON bisa menunjukkan nilai kosong.
+      expect(seed).toMatch(/'pending', [^\n]+, NULL\)/)
     }
   })
 

@@ -2,7 +2,7 @@ import type { Dialect } from '@/types'
 
 // Skema toko online yang dipakai oleh semua contoh query.
 
-type ColumnKind = 'pk' | 'int' | 'varchar' | 'money' | 'timestamp'
+type ColumnKind = 'pk' | 'int' | 'varchar' | 'money' | 'timestamp' | 'json'
 
 export type SampleColumn = {
   name: string
@@ -59,6 +59,8 @@ export const SAMPLE_TABLES: SampleTableDefinition[] = [
       { name: 'customer_id', kind: 'int', notNull: true, references: 'customers' },
       { name: 'status', kind: 'varchar', length: 20, notNull: true },
       { name: 'ordered_at', kind: 'timestamp', notNull: true },
+      // Sengaja boleh kosong agar contoh JSON bisa menunjukkan penanganan NULL.
+      { name: 'metadata', kind: 'json' },
     ],
   },
   {
@@ -97,6 +99,10 @@ export const columnType = (column: SampleColumn, dialect: Dialect): string => {
       return { postgresql: 'NUMERIC(12,2)', mysql: 'DECIMAL(12,2)', sqlite: 'NUMERIC' }[dialect]
     case 'timestamp':
       return { postgresql: 'TIMESTAMP', mysql: 'DATETIME', sqlite: 'TEXT' }[dialect]
+    // SQLite tidak punya tipe JSON; nilainya disimpan sebagai teks dan dibaca
+    // dengan fungsi json_* bawaan.
+    case 'json':
+      return { postgresql: 'JSONB', mysql: 'JSON', sqlite: 'TEXT' }[dialect]
   }
 }
 
@@ -140,12 +146,29 @@ type SeedOrder = {
   status: string
   daysAgo: number
   time: string
+  // Null berarti pesanan tanpa metadata, dipakai contoh JSON untuk menunjukkan NULL.
+  // Jangan menaruh tanggal di dalamnya: seed sengaja bebas tanggal kalender.
+  metadata: string | null
 }
 
 const SEED_ORDERS: SeedOrder[] = [
-  { id: 1, customerId: 1, status: 'paid', daysAgo: 10, time: '09:15:00' },
-  { id: 2, customerId: 2, status: 'paid', daysAgo: 5, time: '14:02:00' },
-  { id: 3, customerId: 1, status: 'pending', daysAgo: 1, time: '19:40:00' },
+  {
+    id: 1,
+    customerId: 1,
+    status: 'paid',
+    daysAgo: 10,
+    time: '09:15:00',
+    metadata: '{"channel": "web", "coupon": "HEMAT10", "tags": ["promo", "bundling"]}',
+  },
+  {
+    id: 2,
+    customerId: 2,
+    status: 'paid',
+    daysAgo: 5,
+    time: '14:02:00',
+    metadata: '{"channel": "mobile", "tags": ["promo"]}',
+  },
+  { id: 3, customerId: 1, status: 'pending', daysAgo: 1, time: '19:40:00', metadata: null },
 ]
 
 const relativeTimestamp = (dialect: Dialect, daysAgo: number, time: string): string => {
@@ -197,13 +220,14 @@ const SEED_AFTER_ORDERS = [
 export const buildSeed = (dialect: Dialect): string => {
   const orders = SEED_ORDERS.map((order, index) => {
     const timestamp = relativeTimestamp(dialect, order.daysAgo, order.time)
+    const metadata = order.metadata === null ? 'NULL' : `'${order.metadata}'`
     const end = index < SEED_ORDERS.length - 1 ? ',' : ';'
-    return `  (${order.id}, ${order.customerId}, '${order.status}', ${timestamp})${end}`
+    return `  (${order.id}, ${order.customerId}, '${order.status}', ${timestamp}, ${metadata})${end}`
   })
 
   return [
     ...SEED_BEFORE_ORDERS,
-    'INSERT INTO orders (id, customer_id, status, ordered_at) VALUES',
+    'INSERT INTO orders (id, customer_id, status, ordered_at, metadata) VALUES',
     ...orders,
     ...SEED_AFTER_ORDERS,
   ].join('\n')
