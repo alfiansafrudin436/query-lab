@@ -1,0 +1,65 @@
+title: 'Correlated subquery: bandingkan dengan grupnya'
+summary: Cari produk yang harganya di atas rata-rata kategorinya sendiri, bukan rata-rata seluruh katalog.
+whenToUse: Saat tiap baris perlu dibandingkan dengan ringkasan kelompoknya sendiri, misalnya produk di atas rata-rata kategorinya atau gaji di atas rata-rata departemennya.
+difficulty: intermediate
+tags: [correlated subquery, subquery, per grup, rata-rata, perbandingan]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [subquery-in-exists, percent-of-total, cte-staged]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        p.name,
+        p.category_id,
+        p.price
+      FROM products p
+      WHERE p.price > (
+        SELECT AVG(p2.price)
+        FROM products p2
+        WHERE p2.category_id = p.category_id
+      )
+      ORDER BY p.category_id, p.name;
+    explanation:
+      - lines: [1, 5]
+        clause: SELECT p.name, p.category_id, p.price FROM products p
+        text: Query luar berjalan baris demi baris. Alias p mewakili baris yang sedang diperiksa.
+      - lines: [6, 6]
+        clause: WHERE p.price > (…)
+        text: Nilai pembandingnya bukan angka tetap, melainkan dihitung ulang khusus untuk baris ini.
+      - lines: [7, 8]
+        clause: SELECT AVG(p2.price) FROM products p2
+        text: Tabel yang sama dibaca lagi dengan alias berbeda, p2. Alias berbeda ini wajib agar kedua baris bisa dibedakan.
+      - lines: [9, 9]
+        clause: WHERE p2.category_id = p.category_id
+        text: Inilah yang membuatnya disebut correlated. Subquery merujuk p dari query luar, jadi rata-ratanya dihitung hanya dari produk sekategori.
+      - lines: [11, 11]
+        clause: ORDER BY p.category_id, p.name
+        text: Urutkan per kategori agar hasilnya mudah ditelusuri.
+sample:
+  description: Rata-rata kategori Kopi adalah 70.500, jadi hanya Arabika yang lolos dan Robusta tidak. Teh Melati satu-satunya produk di kategorinya, sehingga harganya sama persis dengan rata-rata dan ikut tersaring keluar.
+  input:
+    - caption: products
+      columns: [id, category_id, name, price]
+      rows:
+        - [101, 2, Kopi Arabika 250g, 79000]
+        - [102, 3, Teh Melati 100g, 25000]
+        - [103, 2, Kopi Robusta 250g, 62000]
+  output:
+    caption: Hasil
+    columns: [name, category_id, price]
+    rows:
+      - [Kopi Arabika 250g, 2, 79000]
+notes:
+  - type: warning
+    title: Dijalankan sekali untuk setiap baris
+    text: Berbeda dari subquery biasa yang cukup dihitung sekali, correlated subquery dihitung ulang per baris query luar. Pada tabel besar ini bisa sangat lambat. Database modern sering mampu menulis ulangnya menjadi JOIN, tapi jangan diandalkan, periksa dengan EXPLAIN.
+  - type: tip
+    title: Alternatif dengan window function
+    text: Pertanyaan yang sama bisa dijawab sekali jalan dengan AVG(p.price) OVER (PARTITION BY p.category_id), lalu hasilnya disaring lewat CTE. Pada data besar biasanya jauh lebih cepat karena tabel hanya dibaca sekali.
+  - type: warning
+    title: Hati-hati bila subquery tidak mengembalikan baris
+    text: Bila sebuah kategori tidak punya produk pembanding, AVG menghasilkan NULL dan perbandingannya ikut NULL, sehingga barisnya tersaring keluar tanpa pesan apa pun. Pastikan itu memang perilaku yang kamu inginkan.
+  - type: info
+    text: Subquery yang mengembalikan lebih dari satu baris akan membuat perbandingan seperti ini gagal dengan error. Pakai IN, ANY, atau ALL bila memang ingin membandingkan dengan banyak nilai.

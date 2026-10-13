@@ -1,0 +1,68 @@
+title: Buat deret angka dengan recursive CTE
+summary: Hasilkan baris 1 sampai 7 tanpa tabel bantu, sebagai bahan dasar membuat deret tanggal atau mengisi data kosong.
+whenToUse: Saat butuh sederet baris yang tidak ada di tabel mana pun, misalnya kerangka tanggal untuk laporan harian agar hari tanpa transaksi tetap muncul.
+difficulty: intermediate
+tags: [recursive cte, deret, generate_series, angka, kerangka]
+popularity: 5
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.8.3'
+related: [recursive-cte-hierarchy, fill-date-gaps, cross-join]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH RECURSIVE deret AS (
+        SELECT 1 AS n
+        UNION ALL
+        SELECT n + 1
+        FROM deret
+        WHERE n < 7
+      )
+      SELECT n
+      FROM deret
+      ORDER BY n;
+    explanation:
+      - lines: [1, 1]
+        clause: WITH RECURSIVE deret AS (…)
+        text: Kata RECURSIVE wajib agar CTE boleh memanggil dirinya sendiri. PostgreSQL dan MySQL mengharuskannya, SQLite memperbolehkannya.
+      - lines: [2, 2]
+        clause: 'Bagian dasar: SELECT 1 AS n'
+        text: Titik awal deret. Bagian ini dijalankan sekali saja dan tidak membaca tabel apa pun.
+      - lines: [3, 3]
+        clause: UNION ALL
+        text: Penghubung wajib antara bagian dasar dan bagian rekursif. Pakai UNION ALL, bukan UNION, karena UNION harus membandingkan seluruh baris di tiap putaran.
+      - lines: [4, 5]
+        clause: SELECT n + 1 FROM deret
+        text: Setiap putaran mengambil baris yang baru dihasilkan lalu menambah satu, sehingga deretnya tumbuh satu per satu.
+      - lines: [6, 6]
+        clause: WHERE n < 7
+        text: Syarat berhenti, dan bukan sekadar pembatas. Tanpa baris ini rekursinya tidak akan pernah selesai.
+      - lines: [8, 10]
+        clause: SELECT n FROM deret ORDER BY n
+        text: Query utama membaca CTE seperti tabel biasa.
+sample:
+  description: Tujuh baris dihasilkan sepenuhnya oleh query, tanpa menyentuh satu pun tabel di skema contoh.
+  output:
+    caption: Hasil
+    columns: [n]
+    rows:
+      - [1]
+      - [2]
+      - [3]
+      - [4]
+      - [5]
+      - [6]
+      - [7]
+notes:
+  - type: warning
+    title: Syarat berhenti itu wajib
+    text: Tanpa WHERE pembatas, PostgreSQL dan SQLite akan terus berjalan sampai memori habis, sedangkan MySQL berhenti di cte_max_recursion_depth (bawaannya 1000) dengan error. Tulis syarat berhentinya lebih dulu sebelum mencoba menjalankan.
+  - type: tip
+    title: PostgreSQL punya jalan pintas
+    text: Di PostgreSQL cukup SELECT generate_series(1, 7), dan untuk tanggal bisa langsung generate_series(CURRENT_DATE - 6, CURRENT_DATE, INTERVAL '1 day'). MySQL dan SQLite tidak punya fungsi ini, jadi recursive CTE adalah cara yang berlaku di ketiganya.
+  - type: tip
+    text: Ganti bagian dasarnya dengan sebuah tanggal dan bagian rekursifnya dengan penambahan satu hari, maka deret ini berubah menjadi kerangka tanggal. Lihat contoh mengisi tanggal kosong untuk sintaks tiap dialek.
+  - type: info
+    text: Deret angka juga berguna untuk memecah satu baris menjadi beberapa baris, misalnya memunculkan item pesanan sebanyak quantity-nya untuk keperluan cetak label.

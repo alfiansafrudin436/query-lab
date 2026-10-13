@@ -1,0 +1,68 @@
+title: Rapikan teks dengan UPPER, LOWER, dan TRIM
+summary: Seragamkan huruf dan buang spasi berlebih sebelum teks dibandingkan atau ditampilkan.
+whenToUse: Saat membandingkan teks dari sumber yang tidak rapi, atau menyeragamkan tampilan nama dan email sebelum disimpan.
+difficulty: beginner
+tags: [upper, lower, trim, length, rapikan teks, normalisasi]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [concat-string, split-string, like-search]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        c.name,
+        UPPER(c.name) AS huruf_besar,
+        LOWER(c.email) AS email_kecil,
+        LENGTH(TRIM(c.name)) AS panjang_nama
+      FROM customers c
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT c.name
+        text: Tampilkan nilai aslinya sebagai pembanding.
+      - lines: [3, 3]
+        clause: UPPER(c.name)
+        text: Ubah seluruhnya menjadi huruf besar. Pasangannya, LOWER, bekerja sebaliknya. Keduanya ada di ketiga database dengan nama yang sama.
+      - lines: [4, 4]
+        clause: LOWER(c.email)
+        text: Email lazim disimpan huruf kecil semua agar dua ejaan yang sama tidak dianggap dua orang berbeda.
+      - lines: [5, 5]
+        clause: TRIM(c.name)
+        text: Membuang spasi di awal dan akhir teks. Spasi di tengah tidak tersentuh. Pakai LTRIM atau RTRIM bila hanya satu sisi yang perlu dibersihkan.
+      - lines: [5, 5]
+        clause: LENGTH(…)
+        text: Menghitung panjang teks setelah dirapikan, berguna untuk memastikan TRIM memang bekerja.
+      - lines: [6, 7]
+        clause: FROM customers c ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+sample:
+  description: Nama di data contoh sudah rapi, jadi TRIM tidak mengubah panjangnya. Perhatikan Rina W. yang panjangnya 7 karena titik dan spasi ikut dihitung.
+  input:
+    - caption: customers
+      columns: [id, name, email]
+      rows:
+        - [1, Rina Wijaya, rina@example.com]
+        - [2, Dimas Pratama, dimas@example.com]
+        - [3, Sari Lestari, sari@example.com]
+        - [4, Rina W., rina@example.com]
+  output:
+    caption: Hasil
+    columns: [name, huruf_besar, email_kecil, panjang_nama]
+    rows:
+      - [Rina Wijaya, RINA WIJAYA, rina@example.com, 11]
+      - [Dimas Pratama, DIMAS PRATAMA, dimas@example.com, 13]
+      - [Sari Lestari, SARI LESTARI, sari@example.com, 12]
+      - [Rina W., RINA W., rina@example.com, 7]
+notes:
+  - type: warning
+    title: LENGTH di MySQL menghitung byte
+    text: Di MySQL, LENGTH mengembalikan jumlah byte, sehingga huruf beraksen atau emoji terhitung lebih dari satu. Pakai CHAR_LENGTH bila yang dimaksud jumlah karakter. PostgreSQL dan SQLite sudah menghitung karakter sejak awal.
+  - type: warning
+    title: Membungkus kolom membatalkan index
+    text: Menyaring dengan LOWER di sisi kolom memaksa database menghitung fungsi itu di setiap baris, sehingga index pada kolom tersebut tidak terpakai. Solusinya, simpan datanya sudah dalam huruf kecil, atau buat index berbasis ekspresi di PostgreSQL.
+  - type: tip
+    title: Lebih baik dirapikan sebelum disimpan
+    text: Membersihkan teks saat query berarti pekerjaan yang sama diulang terus-menerus. Rapikan sekali saat data masuk, misalnya lewat trigger atau di lapisan aplikasi, lalu query tinggal membandingkan apa adanya.
+  - type: info
+    text: TRIM juga bisa membuang karakter selain spasi, misalnya membuang angka nol di depan sebuah kode. Sintaksnya seragam di PostgreSQL dan MySQL dengan bentuk TRIM(karakter FROM teks), sedangkan SQLite memakai bentuk TRIM(teks, karakter).

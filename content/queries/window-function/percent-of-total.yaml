@@ -1,0 +1,71 @@
+title: Hitung persentase dari total penjualan
+summary: Tampilkan kontribusi tiap produk terhadap total, tanpa menjalankan query kedua untuk mencari totalnya.
+whenToUse: Saat laporan butuh kolom kontribusi atau pangsa, misalnya persentase penjualan tiap produk terhadap keseluruhan.
+difficulty: advanced
+tags: [persentase, pangsa, window function, over, kontribusi]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.25'
+related: [rank-dense-rank, aggregate-functions, correlated-subquery]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        p.name,
+        SUM(oi.quantity * oi.unit_price) AS total,
+        ROUND(100.0 * SUM(oi.quantity * oi.unit_price) / SUM(SUM(oi.quantity * oi.unit_price)) OVER (), 2) AS persen
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      GROUP BY p.id, p.name
+      ORDER BY total DESC;
+    explanation:
+      - lines: [3, 3]
+        clause: SUM(oi.quantity * oi.unit_price) AS total
+        text: Total penjualan per produk, hasil dari GROUP BY di bawah.
+      - lines: [4, 4]
+        clause: SUM(SUM(…)) OVER ()
+        text: SUM bertumpuk ini memang disengaja. SUM bagian dalam dihitung per produk oleh GROUP BY, lalu SUM bagian luar menjumlahkan seluruh hasilnya menjadi total keseluruhan.
+      - lines: [4, 4]
+        clause: OVER ()
+        text: Tanda kurung yang dibiarkan kosong berarti jendelanya seluruh baris hasil. Inilah yang membuat total keseluruhan tersedia di setiap baris tanpa query terpisah.
+      - lines: [4, 4]
+        clause: 100.0 dikali lebih dulu
+        text: Angka 100.0 ditulis berdesimal dengan sengaja, agar pembagiannya tidak dianggap pembagian bilangan bulat yang memangkas hasil menjadi nol.
+      - lines: [5, 7]
+        clause: GROUP BY p.id, p.name
+        text: Satu baris per produk. Window function dihitung setelah GROUP BY selesai, karena itu ia bisa menjumlahkan hasil agregat.
+      - lines: [8, 8]
+        clause: ORDER BY total DESC
+        text: Urutkan dari penyumbang terbesar.
+sample:
+  description: Total seluruhnya 419.000. Setiap baris dibagi angka yang sama, sehingga kolom persen bila dijumlahkan mendekati 100.
+  input:
+    - caption: order_items
+      columns: [order_id, product_id, quantity, unit_price]
+      rows:
+        - [1, 101, 2, 79000]
+        - [1, 102, 1, 25000]
+        - [2, 103, 3, 62000]
+        - [3, 102, 2, 25000]
+  output:
+    caption: Hasil
+    columns: [name, total, persen]
+    rows:
+      - [Kopi Robusta 250g, 186000, '44.39']
+      - [Kopi Arabika 250g, 158000, '37.71']
+      - [Teh Melati 100g, 75000, '17.90']
+notes:
+  - type: warning
+    title: Pembagian bilangan bulat memangkas hasil
+    text: Di PostgreSQL dan MySQL, 158000 dibagi 419000 pada tipe integer menghasilkan 0, bukan 0,377. Mengalikan dengan 100.0 lebih dulu, atau melakukan CAST ke tipe desimal, menghindarkan kolom persen yang isinya nol semua.
+  - type: warning
+    title: Jaga dari pembagian nol
+    text: Bila seluruh total bernilai nol, pembaginya menjadi nol dan query gagal di PostgreSQL dan MySQL. Bungkus pembaginya dengan NULLIF agar hasilnya NULL, bukan error.
+  - type: tip
+    title: Persentase per kelompok
+    text: Tambahkan PARTITION BY di dalam OVER untuk mengubah pembaginya menjadi total per kelompok, misalnya OVER (PARTITION BY p.category_id) untuk melihat kontribusi produk di dalam kategorinya sendiri.
+  - type: info
+    text: Jumlah kolom persen tidak selalu tepat 100 karena pembulatan tiap baris. Bila laporan mengharuskan jumlahnya pas, bulatkan di lapisan tampilan dan sesuaikan selisihnya di baris terakhir.

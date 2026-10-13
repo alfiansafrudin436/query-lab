@@ -1,0 +1,66 @@
+title: Ambil baris hasil perubahan dengan RETURNING
+summary: Dapatkan id dan isi baris yang baru dibuat langsung dari perintah INSERT, tanpa query susulan.
+whenToUse: Saat butuh id baris yang baru dibuat, misalnya untuk langsung menyimpan detail pesanan setelah header-nya tersimpan.
+difficulty: intermediate
+tags: [returning, last_insert_id, insert, id baru]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  sqlite: '3.35'
+related: [insert-basic, insert-select, upsert]
+variants:
+  - dialects: [postgresql, sqlite]
+    note: RETURNING juga berlaku untuk UPDATE dan DELETE, dan bisa mengembalikan banyak baris sekaligus.
+    code: |
+      INSERT INTO customers (name, email, city)
+      VALUES ('Bayu Nugroho', 'bayu@example.com', 'Semarang')
+      RETURNING id, name, city;
+    explanation:
+      - lines: [1, 2]
+        clause: INSERT INTO customers (…) VALUES (…)
+        text: Perintah INSERT biasa. Kolom id tidak diisi karena dibuat otomatis oleh database.
+      - lines: [3, 3]
+        clause: RETURNING id, name, city
+        text: Perintahnya berubah menjadi menghasilkan baris, persis seperti SELECT. Yang dikembalikan adalah nilai setelah tersimpan, termasuk id dan nilai bawaan yang diisi database.
+      - lines: [3, 3]
+        clause: Pilih kolomnya seperlunya
+        text: Menulis RETURNING bintang juga boleh. Menyebut kolom tertentu lebih rapi dan menghindari ikut terbawanya kolom yang tidak dibutuhkan.
+  - dialects: [mysql]
+    note: MySQL tidak punya RETURNING, jadi id barunya diambil lewat LAST_INSERT_ID() dengan perintah terpisah.
+    code: |
+      INSERT INTO customers (name, email, city)
+      VALUES ('Bayu Nugroho', 'bayu@example.com', 'Semarang');
+
+      SELECT id, name, city
+      FROM customers
+      WHERE id = LAST_INSERT_ID();
+    explanation:
+      - lines: [1, 2]
+        clause: INSERT INTO customers (…) VALUES (…)
+        text: Perintah INSERT biasa, dijalankan tersendiri.
+      - lines: [4, 6]
+        clause: WHERE id = LAST_INSERT_ID()
+        text: LAST_INSERT_ID mengembalikan id terakhir yang dibuat oleh koneksi ini. Nilainya khusus per koneksi, jadi sisipan dari pengguna lain tidak akan tertukar.
+      - lines: [6, 6]
+        clause: Dua perintah terpisah
+        text: Berbeda dari RETURNING yang menyatu, cara ini terdiri dari dua langkah. Jalankan keduanya dalam satu transaksi bila barisnya mungkin diubah pihak lain di sela keduanya.
+sample:
+  description: Baris baru mendapat id 5, melanjutkan empat customer yang sudah ada. Nilai ini langsung tersedia tanpa perlu mencari ulang barisnya.
+  output:
+    caption: Hasil
+    columns: [id, name, city]
+    rows:
+      - [5, Bayu Nugroho, Semarang]
+notes:
+  - type: warning
+    title: LAST_INSERT_ID hanya mengingat satu nilai
+    text: Pada INSERT berisi banyak baris, MySQL mengembalikan id baris pertama, bukan yang terakhir. Sisanya harus dihitung sendiri dan itu rapuh. Untuk sisipan banyak baris, lebih aman menyisipkan satu per satu atau mencari barisnya lewat kolom unik.
+  - type: warning
+    title: Jangan memakai MAX(id) untuk mencari baris baru
+    text: Pola SELECT MAX(id) setelah INSERT terlihat berhasil saat diuji sendirian, tetapi salah begitu ada dua pengguna menyisipkan bersamaan. RETURNING dan LAST_INSERT_ID aman karena keduanya terikat pada perintah dan koneksi yang bersangkutan.
+  - type: tip
+    title: Berguna juga untuk UPDATE dan DELETE
+    text: Di PostgreSQL dan SQLite, menambahkan RETURNING pada DELETE memberi salinan baris yang baru saja dihapus, yang berguna untuk pencatatan. Pada UPDATE, yang dikembalikan adalah nilai setelah diperbarui.
+  - type: info
+    text: SQLite baru mendukung RETURNING sejak versi 3.35 (2021). Pada versi lebih lama, pakai fungsi last_insert_rowid() yang perannya mirip LAST_INSERT_ID di MySQL.

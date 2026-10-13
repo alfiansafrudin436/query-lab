@@ -1,0 +1,69 @@
+title: 'CROSS JOIN: semua kombinasi dua tabel'
+summary: Pasangkan setiap kategori dengan setiap status untuk membentuk kerangka laporan yang lengkap.
+whenToUse: Saat butuh seluruh kombinasi yang mungkin sebagai kerangka laporan, agar kombinasi yang datanya nol tetap punya baris.
+difficulty: intermediate
+tags: [cross join, cartesian, kombinasi, kerangka laporan, matriks]
+popularity: 4
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [fill-date-gaps, multi-table-join, left-join]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        cat.name AS kategori,
+        s.status
+      FROM categories cat
+      CROSS JOIN (
+        SELECT 'paid' AS status
+        UNION ALL
+        SELECT 'pending'
+      ) s
+      ORDER BY cat.name, s.status;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT cat.name, s.status
+        text: Hasilnya adalah kerangka laporan, belum berisi angka. Data sebenarnya tinggal di-LEFT JOIN ke kerangka ini.
+      - lines: [4, 4]
+        clause: FROM categories cat
+        text: Sisi pertama, 3 kategori.
+      - lines: [5, 9]
+        clause: CROSS JOIN (…) s
+        text: CROSS JOIN memasangkan setiap baris kiri dengan setiap baris kanan, tanpa syarat ON sama sekali. Hasilnya 3 × 2 = 6 baris.
+      - lines: [6, 8]
+        clause: SELECT 'paid' … UNION ALL SELECT 'pending'
+        text: Daftar status ditulis langsung di query karena tidak ada tabel status di skema contoh. Bila ada tabel acuannya, cukup ditulis CROSS JOIN statuses.
+      - lines: [10, 10]
+        clause: ORDER BY cat.name, s.status
+        text: Urutkan agar matriksnya terbaca rapi.
+sample:
+  description: Tiga kategori dikali dua status menghasilkan enam baris, termasuk kombinasi yang di data aslinya tidak punya pesanan sama sekali.
+  input:
+    - caption: categories
+      columns: [id, name, parent_id]
+      rows:
+        - [1, Minuman, null]
+        - [2, Kopi, 1]
+        - [3, Teh, 1]
+  output:
+    caption: Hasil
+    columns: [kategori, status]
+    rows:
+      - [Kopi, paid]
+      - [Kopi, pending]
+      - [Minuman, paid]
+      - [Minuman, pending]
+      - [Teh, paid]
+      - [Teh, pending]
+notes:
+  - type: warning
+    title: Jumlah barisnya berlipat, bukan bertambah
+    text: CROSS JOIN menghasilkan jumlah baris kiri dikali jumlah baris kanan. Dua tabel berisi 10.000 baris akan menghasilkan 100 juta baris. Pastikan paling tidak satu sisinya kecil dan pasti.
+  - type: warning
+    title: CROSS JOIN yang tidak disengaja
+    text: Menulis FROM a, b tanpa syarat di WHERE, atau JOIN dengan ON yang keliru sehingga selalu benar, diam-diam menghasilkan perkalian silang. Gejalanya khas, jumlah baris membengkak dan semua angka agregat jadi berlipat.
+  - type: tip
+    title: Gunanya untuk laporan tanpa lubang
+    text: GROUP BY hanya menghasilkan baris untuk kombinasi yang ada datanya, sehingga kategori tanpa pesanan hilang dari laporan, bukan tampil sebagai nol. Buat kerangkanya dengan CROSS JOIN, lalu LEFT JOIN data sebenarnya dan bungkus hitungan dengan COALESCE agar menjadi nol.
+  - type: info
+    text: 'Penulisan lain yang sama artinya: FROM categories cat, (…) s. Bentuk CROSS JOIN lebih disarankan karena niatnya terbaca jelas dan tidak mudah disangka sebagai JOIN yang lupa diberi syarat.'

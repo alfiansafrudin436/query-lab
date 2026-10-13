@@ -1,0 +1,129 @@
+title: Subtotal dan grand total dengan ROLLUP
+summary: Tampilkan penjualan per produk, subtotal per kategori, dan total keseluruhan dalam satu hasil query.
+whenToUse: Saat laporan butuh baris subtotal dan total akhir sekaligus, tanpa menjalankan beberapa query lalu menggabungnya di aplikasi.
+difficulty: advanced
+tags: [rollup, subtotal, grand total, group by, laporan]
+popularity: 6
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+related: [group-having, conditional-aggregate, percent-of-total]
+variants:
+  - dialects: [postgresql]
+    note: ROLLUP adalah sintaks standar SQL dan ditulis di dalam GROUP BY.
+    code: |
+      SELECT
+        c.name AS kategori,
+        p.name AS produk,
+        SUM(oi.quantity) AS total_terjual
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      JOIN categories c ON c.id = p.category_id
+      GROUP BY ROLLUP (c.name, p.name)
+      ORDER BY c.name IS NULL, c.name, p.name IS NULL, p.name;
+    explanation:
+      - lines: [1, 4]
+        clause: SELECT c.name, p.name, SUM(oi.quantity)
+        text: Kolom pengelompokan dan angka yang dijumlahkan. Pada baris subtotal, kolom yang sedang diringkas akan bernilai NULL.
+      - lines: [5, 7]
+        clause: JOIN products p … JOIN categories c …
+        text: Produk perlu digabung ke kategorinya agar ada dua tingkat untuk diringkas.
+      - lines: [8, 8]
+        clause: GROUP BY ROLLUP (c.name, p.name)
+        text: ROLLUP menghasilkan tiga tingkat sekaligus, yaitu per kategori dan produk, lalu per kategori saja, lalu total seluruhnya. Urutan kolom di dalamnya menentukan arah peringkasan, dari kanan ke kiri.
+      - lines: [9, 9]
+        clause: ORDER BY c.name IS NULL, c.name, …
+        text: Baris subtotal perlu diurutkan setelah barisan rinciannya. Ekspresi IS NULL bernilai salah lebih dulu, jadi baris rincian tampil di atas dan subtotal menyusul.
+  - dialects: [mysql]
+    note: MySQL menempatkan ROLLUP di akhir GROUP BY, dan baru membolehkan ORDER BY bersamanya sejak versi 8.0.
+    code: |
+      SELECT
+        c.name AS kategori,
+        p.name AS produk,
+        SUM(oi.quantity) AS total_terjual
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      JOIN categories c ON c.id = p.category_id
+      GROUP BY c.name, p.name WITH ROLLUP
+      ORDER BY c.name IS NULL, c.name, p.name IS NULL, p.name;
+    explanation:
+      - lines: [1, 4]
+        clause: SELECT c.name, p.name, SUM(oi.quantity)
+        text: Kolom pengelompokan dan angka yang dijumlahkan. Pada baris subtotal, kolom yang sedang diringkas akan bernilai NULL.
+      - lines: [5, 7]
+        clause: JOIN products p … JOIN categories c …
+        text: Produk perlu digabung ke kategorinya agar ada dua tingkat untuk diringkas.
+      - lines: [8, 8]
+        clause: GROUP BY c.name, p.name WITH ROLLUP
+        text: Hasilnya sama dengan ROLLUP di PostgreSQL, hanya posisi penulisannya yang berbeda. MySQL tidak punya bentuk ROLLUP(…) berkurung.
+      - lines: [9, 9]
+        clause: ORDER BY c.name IS NULL, c.name, …
+        text: Di MySQL, ekspresi IS NULL menghasilkan 0 atau 1, sehingga baris rincian tetap tampil sebelum subtotalnya.
+  - dialects: [sqlite]
+    note: SQLite tidak punya ROLLUP sama sekali, jadi tiap tingkat dihitung terpisah lalu digabung dengan UNION ALL.
+    code: |
+      WITH subtotal AS (
+        SELECT c.name AS kategori, p.name AS produk, SUM(oi.quantity) AS total_terjual
+        FROM order_items oi
+        JOIN products p ON p.id = oi.product_id
+        JOIN categories c ON c.id = p.category_id
+        GROUP BY c.name, p.name
+        UNION ALL
+        SELECT c.name, NULL, SUM(oi.quantity)
+        FROM order_items oi
+        JOIN products p ON p.id = oi.product_id
+        JOIN categories c ON c.id = p.category_id
+        GROUP BY c.name
+        UNION ALL
+        SELECT NULL, NULL, SUM(oi.quantity)
+        FROM order_items oi
+      )
+      SELECT kategori, produk, total_terjual
+      FROM subtotal
+      ORDER BY kategori IS NULL, kategori, produk IS NULL, produk;
+    explanation:
+      - lines: [1, 6]
+        clause: 'Tingkat 1: GROUP BY c.name, p.name'
+        text: Bagian paling rinci, satu baris per produk, sama seperti GROUP BY biasa.
+      - lines: [7, 12]
+        clause: 'Tingkat 2: GROUP BY c.name'
+        text: Subtotal per kategori. Kolom produk sengaja diisi NULL agar bentuk kolomnya sama dengan bagian pertama, meniru perilaku ROLLUP.
+      - lines: [13, 15]
+        clause: 'Tingkat 3: tanpa GROUP BY'
+        text: Total keseluruhan. Tanpa GROUP BY, seluruh tabel jadi satu kelompok sehingga menghasilkan satu baris.
+      - lines: [17, 19]
+        clause: SELECT … FROM subtotal ORDER BY …
+        text: Pengurutan sengaja dilakukan di query luar. SQLite tidak menerima ekspresi di ORDER BY milik UNION ALL, jadi gabungannya dibungkus CTE lebih dulu.
+sample:
+  description: Baris ber-NULL adalah baris ringkasan. Produk bernilai NULL berarti subtotal kategori, dan keduanya NULL berarti total seluruhnya.
+  input:
+    - caption: order_items
+      columns: [order_id, product_id, quantity]
+      rows:
+        - [1, 101, 2]
+        - [1, 102, 1]
+        - [2, 103, 3]
+        - [3, 102, 2]
+  output:
+    caption: Hasil
+    columns: [kategori, produk, total_terjual]
+    rows:
+      - [Kopi, Kopi Arabika 250g, 2]
+      - [Kopi, Kopi Robusta 250g, 3]
+      - [Kopi, null, 5]
+      - [Teh, Teh Melati 100g, 3]
+      - [Teh, null, 3]
+      - [null, null, 8]
+notes:
+  - type: warning
+    title: NULL subtotal bisa tertukar dengan NULL asli
+    text: Bila kolom yang dikelompokkan memang boleh kosong, baris subtotal dan baris berisi NULL asli jadi tidak terbedakan. PostgreSQL dan MySQL menyediakan GROUPING(kolom) yang bernilai 1 khusus untuk baris ringkasan; pakai itu untuk membedakannya.
+  - type: tip
+    title: Ganti NULL dengan label
+    text: Di lapisan tampilan, ubah NULL menjadi teks seperti "Subtotal" atau "Total" dengan COALESCE atau CASE, agar laporannya langsung terbaca orang awam.
+  - type: info
+    title: CUBE dan GROUPING SETS
+    text: PostgreSQL juga punya CUBE untuk semua kombinasi pengelompokan, dan GROUPING SETS bila kamu ingin menentukan sendiri tingkat mana saja yang dihitung. MySQL dan SQLite tidak punya keduanya.
+  - type: warning
+    text: Urutan kolom di dalam ROLLUP menentukan arti subtotalnya. ROLLUP (kategori, produk) menghasilkan subtotal per kategori, sedangkan ROLLUP (produk, kategori) menghasilkan subtotal per produk, yang biasanya bukan yang dimaksud.

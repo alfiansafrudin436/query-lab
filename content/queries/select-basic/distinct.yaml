@@ -1,0 +1,54 @@
+title: Ambil nilai unik dengan DISTINCT
+summary: Buang nilai kembar dari hasil, misalnya daftar kota customer tanpa pengulangan.
+whenToUse: Saat butuh daftar nilai yang berbeda saja, misalnya mengisi pilihan filter kota atau status tanpa duplikat.
+difficulty: beginner
+tags: [distinct, unik, duplikat, nilai berbeda]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [count-distinct, group-having, select-alias]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT DISTINCT c.city
+      FROM customers c
+      ORDER BY c.city;
+    explanation:
+      - lines: [1, 1]
+        clause: SELECT DISTINCT c.city
+        text: DISTINCT membuang baris hasil yang isinya sama persis. Kata ini berlaku untuk seluruh baris hasil, bukan hanya kolom yang ditulis tepat sesudahnya.
+      - lines: [2, 2]
+        clause: FROM customers c
+        text: Empat customer di data contoh, tetapi dua di antaranya berkota sama.
+      - lines: [3, 3]
+        clause: ORDER BY c.city
+        text: DISTINCT tidak menjamin urutan, jadi tetap tambahkan ORDER BY bila urutannya penting.
+sample:
+  description: Rina Wijaya dan Rina W. sama-sama di Bandung, jadi Bandung hanya muncul sekali.
+  input:
+    - caption: customers
+      columns: [id, name, city]
+      rows:
+        - [1, Rina Wijaya, Bandung]
+        - [2, Dimas Pratama, Surabaya]
+        - [3, Sari Lestari, Yogyakarta]
+        - [4, Rina W., Bandung]
+  output:
+    caption: Hasil
+    columns: [city]
+    rows:
+      - [Bandung]
+      - [Surabaya]
+      - [Yogyakarta]
+notes:
+  - type: warning
+    title: DISTINCT berlaku untuk semua kolom sekaligus
+    text: 'SELECT DISTINCT c.city, c.name akan menghasilkan semua baris, karena pasangan kota dan nama memang berbeda semua. DISTINCT bukan fungsi yang menempel pada satu kolom: ia membandingkan baris hasil secara utuh.'
+  - type: warning
+    title: Jangan pakai DISTINCT untuk menambal JOIN
+    text: Munculnya baris kembar setelah JOIN biasanya pertanda syarat penggabungannya kurang tepat atau tabelnya memang satu-ke-banyak. Menutupinya dengan DISTINCT membuat query jadi lambat dan menyembunyikan masalah aslinya. Pakai EXISTS atau agregasi lebih dulu.
+  - type: info
+    text: NULL dianggap satu nilai oleh DISTINCT. Jadi meski beberapa customer kotanya kosong, NULL tetap muncul sekali saja di hasil.
+  - type: tip
+    title: DISTINCT ON khas PostgreSQL
+    text: PostgreSQL punya DISTINCT ON (kolom) untuk mengambil satu baris per nilai, misalnya pesanan terbaru per customer. MySQL dan SQLite tidak punya ini, jadi pakai ROW_NUMBER() seperti pada contoh Top-N per grup.

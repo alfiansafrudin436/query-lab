@@ -1,0 +1,109 @@
+title: Pisah teks jadi beberapa bagian
+summary: Pecah alamat email menjadi nama akun dan domain, memakai tanda @ sebagai pemisah.
+whenToUse: Saat satu kolom menyimpan dua informasi sekaligus, misalnya memisahkan domain dari email atau mengambil kode dari nomor dokumen.
+difficulty: intermediate
+tags: [split, pisah teks, substring, split_part, substring_index]
+popularity: 6
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [concat-string, upper-lower-trim, regex-match]
+variants:
+  - dialects: [postgresql]
+    note: split_part mengambil bagian ke-n hasil pemisahan, dihitung mulai dari 1.
+    code: |
+      SELECT
+        c.email,
+        split_part(c.email, '@', 1) AS nama_akun,
+        split_part(c.email, '@', 2) AS domain
+      FROM customers c
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT c.email
+        text: Tampilkan kolom aslinya agar hasil pemisahannya mudah diperiksa.
+      - lines: [3, 3]
+        clause: split_part(c.email, '@', 1)
+        text: Pisahkan teks memakai tanda @ lalu ambil bagian pertama. Bila pemisahnya tidak ditemukan, bagian pertama berisi seluruh teks aslinya.
+      - lines: [4, 4]
+        clause: split_part(c.email, '@', 2)
+        text: Bagian kedua, yaitu domainnya. Meminta bagian yang tidak ada akan menghasilkan teks kosong, bukan error.
+      - lines: [5, 6]
+        clause: FROM customers c ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+  - dialects: [mysql]
+    note: SUBSTRING_INDEX memotong teks sampai kemunculan pemisah ke-n; hitungan negatif berarti dihitung dari belakang.
+    code: |
+      SELECT
+        c.email,
+        SUBSTRING_INDEX(c.email, '@', 1) AS nama_akun,
+        SUBSTRING_INDEX(c.email, '@', -1) AS domain
+      FROM customers c
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT c.email
+        text: Tampilkan kolom aslinya agar hasil pemisahannya mudah diperiksa.
+      - lines: [3, 3]
+        clause: SUBSTRING_INDEX(c.email, '@', 1)
+        text: Ambil semua teks sebelum tanda @ yang pertama. Berbeda dari split_part, yang dikembalikan adalah seluruh potongan sampai pemisah itu, bukan elemen ke-n.
+      - lines: [4, 4]
+        clause: SUBSTRING_INDEX(c.email, '@', -1)
+        text: Angka negatif berarti menghitung dari belakang, jadi ini mengambil teks setelah tanda @ terakhir. Cara ini aman walau teksnya memuat lebih dari satu pemisah.
+      - lines: [5, 6]
+        clause: FROM customers c ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+  - dialects: [sqlite]
+    note: SQLite tidak punya fungsi pemisah teks, jadi posisi pemisahnya dicari dulu dengan instr lalu dipotong dengan substr.
+    code: |
+      SELECT
+        c.email,
+        substr(c.email, 1, instr(c.email, '@') - 1) AS nama_akun,
+        substr(c.email, instr(c.email, '@') + 1) AS domain
+      FROM customers c
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT c.email
+        text: Tampilkan kolom aslinya agar hasil pemisahannya mudah diperiksa.
+      - lines: [3, 3]
+        clause: instr(c.email, '@')
+        text: Mencari posisi tanda @ dan mengembalikan nomor karakternya, dihitung mulai dari 1. Bila tidak ditemukan, hasilnya 0.
+      - lines: [3, 3]
+        clause: substr(c.email, 1, posisi - 1)
+        text: Ambil dari karakter pertama sepanjang satu karakter sebelum pemisah, sehingga tanda @ tidak ikut terbawa.
+      - lines: [4, 4]
+        clause: substr(c.email, posisi + 1)
+        text: Tanpa argumen panjang, substr mengambil seluruh sisa teks mulai dari posisi tersebut.
+      - lines: [5, 6]
+        clause: FROM customers c ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+sample:
+  description: Rina Wijaya dan Rina W. memakai email yang sama di data contoh, jadi dua baris terakhir hasilnya identik.
+  input:
+    - caption: customers
+      columns: [id, name, email]
+      rows:
+        - [1, Rina Wijaya, rina@example.com]
+        - [2, Dimas Pratama, dimas@example.com]
+        - [3, Sari Lestari, sari@example.com]
+        - [4, Rina W., rina@example.com]
+  output:
+    caption: Hasil
+    columns: [email, nama_akun, domain]
+    rows:
+      - [rina@example.com, rina, example.com]
+      - [dimas@example.com, dimas, example.com]
+      - [sari@example.com, sari, example.com]
+      - [rina@example.com, rina, example.com]
+notes:
+  - type: warning
+    title: Perilakunya berbeda bila pemisah tidak ada
+    text: Ini perbedaan paling menjebak antar dialek. Pada teks tanpa tanda @, split_part dan SUBSTRING_INDEX mengembalikan teks aslinya, sedangkan rumus SQLite di atas menghasilkan teks kosong karena instr bernilai 0. Lindungi dengan CASE WHEN instr(…) sama dengan 0 bila datanya tidak dijamin rapi.
+  - type: warning
+    title: Hitungan karakter dimulai dari 1
+    text: Berbeda dari kebanyakan bahasa pemrograman, posisi karakter di SQL dimulai dari 1, bukan 0. Inilah alasan adanya pengurangan dan penambahan satu pada rumus SQLite.
+  - type: tip
+    title: Memecah jadi banyak baris
+    text: Contoh ini memecah menjadi beberapa kolom. Untuk memecah daftar berkoma menjadi banyak baris, PostgreSQL punya unnest(string_to_array(…)), MySQL 8 punya JSON_TABLE, sedangkan SQLite memerlukan recursive CTE.
+  - type: info
+    text: Kalau sebuah kolom sering perlu dipecah, itu pertanda datanya sebaiknya disimpan terpisah sejak awal. Memecah teks saat query selalu lebih lambat dan lebih rapuh daripada membaca kolom tersendiri.

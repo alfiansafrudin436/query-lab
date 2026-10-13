@@ -1,0 +1,73 @@
+title: Rata-rata bergerak dengan ROWS BETWEEN
+summary: Haluskan grafik penjualan harian dengan rata-rata beberapa titik terakhir, bukan rata-rata seluruh data.
+whenToUse: Saat angka harian terlalu naik turun untuk dibaca, dan kamu ingin melihat arah trennya pada grafik.
+difficulty: advanced
+tags: [moving average, rata-rata bergerak, rows between, window frame, tren]
+popularity: 6
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.25'
+related: [running-total, lag-compare-period, fill-date-gaps]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      WITH harian AS (
+        SELECT
+          o.ordered_at,
+          SUM(oi.quantity * oi.unit_price) AS total
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        GROUP BY o.ordered_at
+      )
+      SELECT
+        ordered_at,
+        total,
+        ROUND(AVG(total) OVER (ORDER BY ordered_at ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS rata_bergerak
+      FROM harian
+      ORDER BY ordered_at;
+    explanation:
+      - lines: [1, 8]
+        clause: WITH harian AS (…)
+        text: Siapkan satu baris per titik waktu lebih dulu. Window function bekerja pada hasil, jadi datanya perlu dirapikan sebelum dirata-rata.
+      - lines: [12, 12]
+        clause: AVG(total) OVER (…)
+        text: Tanpa GROUP BY, AVG di sini menghitung rata-rata atas sekumpulan baris di sekitar baris yang sedang diproses.
+      - lines: [12, 12]
+        clause: ORDER BY ordered_at
+        text: Menentukan urutan baris di dalam window. Kata "sebelumnya" baru punya arti setelah urutannya jelas.
+      - lines: [12, 12]
+        clause: ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+        text: Inilah jendelanya, yaitu dua baris sebelumnya ditambah baris ini, jadi tiga titik. Ganti angka 2 menjadi 6 untuk rata-rata tujuh titik.
+      - lines: [13, 14]
+        clause: FROM harian ORDER BY ordered_at
+        text: ORDER BY di luar mengatur urutan tampilan, terpisah dari ORDER BY di dalam OVER yang mengatur perhitungan.
+sample:
+  description: Tanggal ditulis relatif terhadap hari seed dijalankan. Baris pertama hanya punya dirinya sendiri, baris kedua merata-ratakan dua titik, dan baris ketiga baru memakai tiga titik penuh.
+  input:
+    - caption: orders
+      columns: [id, ordered_at]
+      rows:
+        - [1, 'H-10 09:15:00']
+        - [2, 'H-5 14:02:00']
+        - [3, 'H-1 19:40:00']
+  output:
+    caption: Hasil
+    columns: [ordered_at, total, rata_bergerak]
+    rows:
+      - ['H-10 09:15:00', 183000, '183000.00']
+      - ['H-5 14:02:00', 186000, '184500.00']
+      - ['H-1 19:40:00', 50000, '139666.67']
+notes:
+  - type: warning
+    title: Baris pertama belum lengkap jendelanya
+    text: Baris awal tidak punya cukup pendahulu, sehingga rata-ratanya dihitung dari baris yang ada saja, bukan NULL. Akibatnya beberapa titik pertama pada grafik terlihat lebih bergejolak. Buang titik awal itu bila ingin grafik yang jujur.
+  - type: warning
+    title: ROWS menghitung baris, bukan hari
+    text: ROWS BETWEEN 6 PRECEDING berarti enam baris sebelumnya, dan itu sama dengan tujuh hari hanya bila setiap hari punya baris. Hari tanpa transaksi akan dilompati tanpa peringatan. Pakai kerangka tanggal lengkap lebih dulu, atau RANGE BETWEEN di PostgreSQL yang menghitung berdasarkan nilai, bukan posisi baris.
+  - type: info
+    title: Bawaan window berbeda dari dugaan
+    text: Bila ORDER BY ditulis tanpa menyebut jendelanya, bawaannya adalah RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW, yang menghasilkan running total, bukan rata-rata bergerak. Jendelanya wajib ditulis eksplisit.
+  - type: tip
+    text: Untuk rata-rata yang terpusat, pakai ROWS BETWEEN 3 PRECEDING AND 3 FOLLOWING. Jendela boleh melihat ke depan, asalkan datanya memang sudah lengkap.

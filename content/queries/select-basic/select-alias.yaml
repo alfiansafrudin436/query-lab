@@ -1,0 +1,63 @@
+title: Pilih kolom tertentu dan beri alias
+summary: Ambil hanya kolom yang dibutuhkan, beri nama yang enak dibaca, dan hitung kolom baru dari yang sudah ada.
+whenToUse: Saat butuh kolom seperlunya saja dengan nama yang siap dipakai aplikasi, misalnya daftar produk beserta harga diskonnya.
+difficulty: beginner
+tags: [select, alias, as, kolom, kolom hitungan]
+popularity: 11
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [where-filter, order-by-limit, case-when]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        p.id AS kode_produk,
+        p.name AS nama_produk,
+        p.price AS harga,
+        p.price * 0.9 AS harga_diskon
+      FROM products p
+      ORDER BY p.price DESC;
+    explanation:
+      - lines: [1, 1]
+        clause: SELECT
+        text: Daftar kolom yang ingin ditampilkan. Sebutkan kolomnya satu per satu, jangan SELECT *, agar hasilnya tidak ikut berubah ketika ada kolom baru di tabel.
+      - lines: [2, 4]
+        clause: p.id AS kode_produk
+        text: AS memberi nama baru pada kolom hasil. Nama aslinya di tabel tidak berubah, yang berubah hanya label di hasil query.
+      - lines: [5, 5]
+        clause: p.price * 0.9 AS harga_diskon
+        text: Kolom hasil tidak harus berasal dari tabel. Perhitungan seperti ini wajib diberi alias, karena tanpa itu nama kolomnya ditentukan database dan sulit dibaca aplikasi.
+      - lines: [6, 6]
+        clause: FROM products p
+        text: Huruf p setelah nama tabel adalah alias tabel. Dengan alias, kolom bisa ditulis singkat sebagai p.id.
+      - lines: [7, 7]
+        clause: ORDER BY p.price DESC
+        text: Urutkan dari harga tertinggi.
+sample:
+  description: Kolom harga_diskon tidak ada di tabel products, melainkan dihitung saat query dijalankan.
+  input:
+    - caption: products
+      columns: [id, name, price, stock]
+      rows:
+        - [101, Kopi Arabika 250g, 79000, 12]
+        - [102, Teh Melati 100g, 25000, 30]
+        - [103, Kopi Robusta 250g, 62000, 20]
+  output:
+    caption: Hasil
+    columns: [kode_produk, nama_produk, harga, harga_diskon]
+    rows:
+      - [101, Kopi Arabika 250g, 79000, 71100]
+      - [103, Kopi Robusta 250g, 62000, 55800]
+      - [102, Teh Melati 100g, 25000, 22500]
+notes:
+  - type: tip
+    title: Hindari SELECT * di kode aplikasi
+    text: SELECT * memang praktis saat menjelajah data, tetapi di aplikasi ia membuat query mengirim kolom yang tidak dipakai, dan hasilnya diam-diam berubah ketika ada kolom baru ditambahkan ke tabel.
+  - type: info
+    title: Kata kunci AS boleh dihilangkan
+    text: 'Menulis p.id kode_produk tanpa AS hasilnya sama. Tetap tulis AS agar jelas, karena tanpa kata itu sebuah koma yang lupa diketik akan berubah menjadi alias tanpa pesan error: SELECT p.id p.name menjadi satu kolom beralias, bukan dua kolom.'
+  - type: warning
+    title: Alias dengan spasi butuh tanda kutip
+    text: 'Alias berisi spasi atau huruf besar harus dikutip: "Harga Diskon" dengan tanda kutip ganda di PostgreSQL dan SQLite, atau backtick di MySQL. Lebih aman memakai huruf kecil dengan garis bawah.'
+  - type: tip
+    text: Alias kolom bisa dipakai di ORDER BY, tetapi tidak di WHERE, karena WHERE diproses sebelum SELECT. Untuk menyaring berdasarkan kolom hitungan, ulangi ekspresinya atau bungkus query-nya dalam CTE.

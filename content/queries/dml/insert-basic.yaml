@@ -1,0 +1,60 @@
+title: INSERT satu baris dan banyak baris
+summary: Tambahkan dua customer sekaligus dalam satu perintah, dan biarkan id dibuat otomatis.
+whenToUse: Saat menyimpan data baru, terutama ketika beberapa baris perlu ditambahkan sekaligus seperti pada impor data awal.
+difficulty: beginner
+tags: [insert, values, tambah data, bulk insert]
+popularity: 10
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [insert-select, upsert, returning]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      INSERT INTO customers (name, email, city)
+      VALUES
+        ('Bayu Nugroho', 'bayu@example.com', 'Semarang'),
+        ('Lia Kurnia', 'lia@example.com', 'Medan');
+    explanation:
+      - lines: [1, 1]
+        clause: INSERT INTO customers (name, email, city)
+        text: Sebutkan kolom tujuan secara eksplisit. Kolom id dan created_at tidak ditulis agar database mengisinya sendiri.
+      - lines: [2, 2]
+        clause: VALUES
+        text: Awal daftar baris yang akan dimasukkan.
+      - lines: [3, 4]
+        clause: Dua baris dipisah koma
+        text: Satu perintah INSERT boleh memuat banyak baris. Urutan nilai di tiap kurung harus sama persis dengan urutan kolom di baris pertama.
+sample:
+  description: Dua baris baru ditambahkan di bawah data yang sudah ada. Kolom id terisi otomatis melanjutkan nomor terakhir.
+  highlightNote: Baris yang disorot = baris baru hasil INSERT
+  input:
+    - caption: Sebelum · customers
+      columns: [id, name, email, city]
+      rows:
+        - [1, Rina Wijaya, rina@example.com, Bandung]
+        - [2, Dimas Pratama, dimas@example.com, Surabaya]
+        - [3, Sari Lestari, sari@example.com, Yogyakarta]
+        - [4, Rina W., rina@example.com, Bandung]
+  output:
+    caption: Sesudah · customers
+    columns: [id, name, email, city]
+    rows:
+      - [1, Rina Wijaya, rina@example.com, Bandung]
+      - [2, Dimas Pratama, dimas@example.com, Surabaya]
+      - [3, Sari Lestari, sari@example.com, Yogyakarta]
+      - [4, Rina W., rina@example.com, Bandung]
+      - [5, Bayu Nugroho, bayu@example.com, Semarang]
+      - [6, Lia Kurnia, lia@example.com, Medan]
+    highlight: [[4, 0], [4, 1], [4, 2], [4, 3], [5, 0], [5, 1], [5, 2], [5, 3]]
+notes:
+  - type: tip
+    title: Satu perintah jauh lebih cepat
+    text: Memasukkan 1.000 baris lewat satu INSERT berisi banyak baris jauh lebih cepat daripada 1.000 perintah terpisah, karena perjalanan ke database hanya sekali. Untuk data yang sangat besar, pakai COPY di PostgreSQL atau LOAD DATA di MySQL.
+  - type: warning
+    title: Selalu sebutkan nama kolomnya
+    text: Bentuk INSERT INTO customers VALUES (…) tanpa daftar kolom bergantung pada urutan kolom di tabel. Begitu ada kolom baru disisipkan, perintah itu rusak atau diam-diam mengisi kolom yang salah.
+  - type: warning
+    title: Jangan merangkai nilai sebagai teks
+    text: Menyusun perintah INSERT dengan menyambung string dari input pengguna membuka celah SQL injection. Pakai parameter atau prepared statement, dan biarkan driver database yang menangani tanda kutipnya.
+  - type: info
+    text: Kolom created_at terisi sendiri karena punya DEFAULT CURRENT_TIMESTAMP di skema contoh. Kolom yang tidak disebutkan akan memakai nilai bawaannya, atau NULL bila tidak punya bawaan.

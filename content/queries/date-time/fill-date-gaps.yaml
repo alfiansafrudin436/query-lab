@@ -1,0 +1,146 @@
+title: Isi tanggal kosong agar grafik tidak bolong
+summary: Bangun kerangka 7 hari lebih dulu, lalu tempelkan datanya, supaya hari tanpa transaksi tampil sebagai nol.
+whenToUse: Saat membuat grafik harian dan hari tanpa transaksi harus tetap muncul sebagai nol, bukan hilang dari sumbu waktu.
+difficulty: advanced
+tags: [generate_series, deret tanggal, left join, grafik, tanggal kosong]
+popularity: 7
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+  sqlite: '3.8.3'
+related: [recursive-cte-series, group-by-month, cross-join]
+variants:
+  - dialects: [postgresql]
+    note: generate_series adalah fungsi bawaan PostgreSQL yang langsung menghasilkan deret tanggal.
+    code: |
+      WITH tanggal AS (
+        SELECT generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, INTERVAL '1 day')::date AS hari
+      )
+      SELECT
+        t.hari,
+        COUNT(o.id) AS jumlah_pesanan
+      FROM tanggal t
+      LEFT JOIN orders o ON o.ordered_at::date = t.hari
+      GROUP BY t.hari
+      ORDER BY t.hari;
+    explanation:
+      - lines: [1, 3]
+        clause: WITH tanggal AS (…)
+        text: Kerangka tanggal dibuat lebih dulu, lepas dari data pesanan. Inilah kuncinya, daftar harinya tidak boleh bergantung pada ada atau tidaknya transaksi.
+      - lines: [2, 2]
+        clause: generate_series(awal, akhir, langkah)
+        text: Menghasilkan satu baris per hari dari batas awal sampai batas akhir. Tanda ::date membuang bagian jam agar bisa dibandingkan dengan tanggal pesanan.
+      - lines: [7, 8]
+        clause: LEFT JOIN orders o ON …
+        text: Arah JOIN menentukan segalanya. Kerangka tanggal harus berada di sisi kiri agar hari tanpa pesanan tetap bertahan di hasil.
+      - lines: [6, 6]
+        clause: COUNT(o.id)
+        text: Sengaja menghitung kolom dari tabel kanan, bukan COUNT bintang. Pada hari tanpa pesanan, o.id bernilai NULL sehingga tidak ikut dihitung dan hasilnya 0.
+      - lines: [9, 10]
+        clause: GROUP BY t.hari ORDER BY t.hari
+        text: Kelompokkan per hari dari kerangka, bukan per hari dari pesanan.
+  - dialects: [mysql]
+    note: MySQL tidak punya generate_series, jadi deret tanggalnya dibuat dengan recursive CTE.
+    code: |
+      WITH RECURSIVE tanggal AS (
+        SELECT CURDATE() - INTERVAL 6 DAY AS hari
+        UNION ALL
+        SELECT hari + INTERVAL 1 DAY
+        FROM tanggal
+        WHERE hari < CURDATE()
+      )
+      SELECT
+        t.hari,
+        COUNT(o.id) AS jumlah_pesanan
+      FROM tanggal t
+      LEFT JOIN orders o ON DATE(o.ordered_at) = t.hari
+      GROUP BY t.hari
+      ORDER BY t.hari;
+    explanation:
+      - lines: [1, 7]
+        clause: WITH RECURSIVE tanggal AS (…)
+        text: Deret tanggal dibangun satu hari sekali lewat rekursi, menggantikan generate_series.
+      - lines: [2, 2]
+        clause: CURDATE() - INTERVAL 6 DAY
+        text: Titik awal kerangka, yaitu enam hari lalu, sehingga totalnya tujuh hari sampai hari ini.
+      - lines: [6, 6]
+        clause: WHERE hari < CURDATE()
+        text: Syarat berhenti. Tanpa baris ini rekursinya berjalan sampai MySQL menghentikannya dengan error.
+      - lines: [11, 12]
+        clause: LEFT JOIN orders o ON …
+        text: Kerangka tanggal berada di sisi kiri agar hari tanpa pesanan tetap bertahan di hasil.
+      - lines: [10, 10]
+        clause: COUNT(o.id)
+        text: Menghitung kolom dari tabel kanan, sehingga hari tanpa pesanan menghasilkan 0, bukan 1.
+      - lines: [13, 14]
+        clause: GROUP BY t.hari ORDER BY t.hari
+        text: Kelompokkan per hari dari kerangka, bukan per hari dari pesanan.
+  - dialects: [sqlite]
+    note: Sama seperti MySQL, deretnya dibuat dengan recursive CTE, hanya fungsi tanggalnya yang berbeda.
+    code: |
+      WITH RECURSIVE tanggal AS (
+        SELECT date('now', '-6 days') AS hari
+        UNION ALL
+        SELECT date(hari, '+1 day')
+        FROM tanggal
+        WHERE hari < date('now')
+      )
+      SELECT
+        t.hari,
+        COUNT(o.id) AS jumlah_pesanan
+      FROM tanggal t
+      LEFT JOIN orders o ON date(o.ordered_at) = t.hari
+      GROUP BY t.hari
+      ORDER BY t.hari;
+    explanation:
+      - lines: [1, 7]
+        clause: WITH RECURSIVE tanggal AS (…)
+        text: Deret tanggal dibangun satu hari sekali lewat rekursi, menggantikan generate_series.
+      - lines: [2, 2]
+        clause: date('now', '-6 days')
+        text: Titik awal kerangka. Fungsi date menghasilkan teks berformat YYYY-MM-DD, yang urutan alfabetisnya sama dengan urutan waktunya.
+      - lines: [6, 6]
+        clause: WHERE hari < date('now')
+        text: Syarat berhenti, dibandingkan sebagai teks dan itu tetap benar berkat format tanggalnya.
+      - lines: [11, 12]
+        clause: LEFT JOIN orders o ON …
+        text: Kerangka tanggal berada di sisi kiri agar hari tanpa pesanan tetap bertahan di hasil.
+      - lines: [10, 10]
+        clause: COUNT(o.id)
+        text: Menghitung kolom dari tabel kanan, sehingga hari tanpa pesanan menghasilkan 0, bukan 1.
+      - lines: [13, 14]
+        clause: GROUP BY t.hari ORDER BY t.hari
+        text: Kelompokkan per hari dari kerangka, bukan per hari dari pesanan.
+sample:
+  description: Tanggal ditulis relatif terhadap hari seed dijalankan, dan H-0 berarti hari ini. Lima dari tujuh hari tidak punya pesanan, tetapi tetap muncul sebagai baris bernilai 0. Pesanan H-10 berada di luar kerangka sehingga tidak ikut terhitung.
+  input:
+    - caption: orders
+      columns: [id, status, ordered_at]
+      rows:
+        - [1, paid, 'H-10 09:15:00']
+        - [2, paid, 'H-5 14:02:00']
+        - [3, pending, 'H-1 19:40:00']
+  output:
+    caption: Hasil
+    columns: [hari, jumlah_pesanan]
+    rows:
+      - ['H-6', 0]
+      - ['H-5', 1]
+      - ['H-4', 0]
+      - ['H-3', 0]
+      - ['H-2', 0]
+      - ['H-1', 1]
+      - ['H-0', 0]
+notes:
+  - type: warning
+    title: COUNT bintang akan salah di sini
+    text: Pada LEFT JOIN, hari tanpa pasangan tetap menghasilkan satu baris berisi NULL. COUNT bintang menghitung baris itu sebagai 1, sehingga hari kosong terlihat punya satu pesanan. Selalu hitung kolom dari tabel kanan.
+  - type: warning
+    title: Jangan menyaring tabel kanan di WHERE
+    text: Menambahkan WHERE o.status = 'paid' membuang baris NULL hasil LEFT JOIN, sehingga hari kosong hilang lagi dan usaha membuat kerangka jadi sia-sia. Pindahkan syarat itu ke dalam klausa ON.
+  - type: tip
+    title: Untuk jumlah uang, bukan jumlah baris
+    text: Ganti COUNT dengan COALESCE(SUM(oi.quantity * oi.unit_price), 0). Tanpa COALESCE, hari tanpa transaksi akan bernilai NULL, dan NULL biasanya membuat garis grafik terputus.
+  - type: info
+    text: Pola yang sama berlaku untuk bulan atau minggu, cukup ganti langkah deretnya. Untuk kerangka dua dimensi, misalnya tiap hari dikali tiap kategori, gabungkan deret ini dengan CROSS JOIN.

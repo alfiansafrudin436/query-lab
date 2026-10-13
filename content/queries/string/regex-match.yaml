@@ -1,0 +1,100 @@
+title: Cocokkan teks dengan pola regex
+summary: Saring customer yang emailnya diawali kata tertentu, memakai pola yang lebih luwes daripada LIKE.
+whenToUse: Saat pola pencariannya terlalu rumit untuk LIKE, misalnya memeriksa format email, nomor telepon, atau kode yang berstruktur.
+difficulty: advanced
+tags: [regex, regexp, pola, pencocokan, glob]
+popularity: 5
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+minVersions:
+  mysql: '8.0'
+related: [like-search, split-string, upper-lower-trim]
+variants:
+  - dialects: [postgresql]
+    note: Operator tilde mencocokkan regex dengan membedakan huruf besar kecil; pakai tilde-bintang untuk mengabaikannya.
+    code: |
+      SELECT c.id, c.name, c.email
+      FROM customers c
+      WHERE c.email ~ '^rina'
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT c.id, c.name, c.email FROM customers c
+        text: Kolom yang ditampilkan beserta email yang diperiksa.
+      - lines: [3, 3]
+        clause: Operator tilde
+        text: Tanda tilde berarti cocok dengan regex. Pasangannya, tanda seru lalu tilde, berarti tidak cocok.
+      - lines: [3, 3]
+        clause: Tanda sisipan di awal pola
+        text: Tanda sisipan mengunci pencocokan di awal teks. Tanpa itu, pola akan cocok di posisi mana pun, mirip LIKE dengan tanda persen di kedua sisi.
+      - lines: [4, 4]
+        clause: ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+  - dialects: [mysql]
+    note: REGEXP di MySQL 8 memakai mesin ICU, dan kepekaan huruf besar kecilnya mengikuti collation kolom.
+    code: |
+      SELECT c.id, c.name, c.email
+      FROM customers c
+      WHERE c.email REGEXP '^rina'
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT c.id, c.name, c.email FROM customers c
+        text: Kolom yang ditampilkan beserta email yang diperiksa.
+      - lines: [3, 3]
+        clause: c.email REGEXP …
+        text: REGEXP adalah operator bawaan MySQL, dan RLIKE berarti sama persis. Untuk kebalikannya, tulis NOT REGEXP.
+      - lines: [3, 3]
+        clause: Tanda sisipan di awal pola
+        text: Mengunci pencocokan di awal teks. MySQL 8 memakai sintaks regex ICU, yang sedikit berbeda dari MySQL 5.7 ke bawah.
+      - lines: [4, 4]
+        clause: ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+  - dialects: [sqlite]
+    note: SQLite tidak menyediakan regex bawaan. Operator REGEXP memang dikenali, tetapi fungsinya harus didaftarkan sendiri oleh aplikasi, jadi di sini dipakai GLOB.
+    code: |
+      SELECT c.id, c.name, c.email
+      FROM customers c
+      WHERE c.email GLOB 'rina*'
+      ORDER BY c.id;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT c.id, c.name, c.email FROM customers c
+        text: Kolom yang ditampilkan beserta email yang diperiksa.
+      - lines: [3, 3]
+        clause: c.email GLOB …
+        text: GLOB memakai pola gaya nama berkas, bukan regex. Tanda bintang berarti teks apa pun, dan tanda tanya berarti tepat satu karakter.
+      - lines: [3, 3]
+        clause: Tanpa tanda bintang di depan
+        text: Pola yang tidak diawali tanda bintang otomatis terkunci di awal teks, sehingga perannya sama dengan tanda sisipan pada regex.
+      - lines: [4, 4]
+        clause: ORDER BY c.id
+        text: Urutkan berdasarkan id customer.
+sample:
+  description: Dua customer memakai email yang sama di data contoh, dan keduanya diawali kata rina sehingga sama-sama terpilih.
+  input:
+    - caption: customers
+      columns: [id, name, email]
+      rows:
+        - [1, Rina Wijaya, rina@example.com]
+        - [2, Dimas Pratama, dimas@example.com]
+        - [3, Sari Lestari, sari@example.com]
+        - [4, Rina W., rina@example.com]
+  output:
+    caption: Hasil
+    columns: [id, name, email]
+    rows:
+      - [1, Rina Wijaya, rina@example.com]
+      - [4, Rina W., rina@example.com]
+notes:
+  - type: warning
+    title: SQLite tidak punya regex bawaan
+    text: Menulis REGEXP di SQLite menghasilkan error no such function, kecuali aplikasi pemanggilnya mendaftarkan fungsi itu sendiri. GLOB dan LIKE selalu tersedia, tetapi polanya jauh lebih terbatas, misalnya tidak ada pengulangan atau pengelompokan.
+  - type: warning
+    title: Regex hampir selalu melewati index
+    text: Pencocokan pola harus memeriksa setiap baris, jadi hindari regex sebagai satu-satunya penyaring di tabel besar. Persempit dulu dengan syarat lain yang bisa memakai index, baru terapkan regex pada sisanya.
+  - type: tip
+    title: Mengganti teks, bukan sekadar mencocokkan
+    text: PostgreSQL punya regexp_replace, dan MySQL 8 punya REGEXP_REPLACE dengan argumen serupa. SQLite tidak punya padanannya, jadi penggantian berpola perlu dilakukan di sisi aplikasi.
+  - type: info
+    text: Untuk pencarian sederhana seperti awalan atau kata yang mengandung sesuatu, LIKE sudah cukup dan lebih cepat. Pakai regex hanya ketika polanya memang butuh pengulangan, pilihan, atau pengelompokan.

@@ -1,0 +1,107 @@
+title: Hitung selisih antar tanggal
+summary: Cari umur pesanan dalam hari, dengan membandingkan tanggal saja agar jamnya tidak memengaruhi hasil.
+whenToUse: Saat butuh jarak waktu antara dua tanggal, misalnya umur pesanan, lama pengiriman, atau masa aktif pelanggan.
+difficulty: intermediate
+tags: [selisih tanggal, datediff, julianday, age, umur]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [date-range-filter, last-7-days, group-by-month]
+variants:
+  - dialects: [postgresql]
+    note: Mengurangkan dua date di PostgreSQL langsung menghasilkan bilangan bulat berisi jumlah hari.
+    code: |
+      SELECT
+        o.id,
+        o.ordered_at,
+        CURRENT_DATE - o.ordered_at::date AS umur_hari
+      FROM orders o
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, o.ordered_at
+        text: Tampilkan waktu aslinya agar hasil perhitungannya mudah diperiksa.
+      - lines: [4, 4]
+        clause: o.ordered_at::date
+        text: Potong bagian jam lebih dulu. Tanpa ini, hasil pengurangannya berupa interval berisi jam dan menit, bukan jumlah hari yang bulat.
+      - lines: [4, 4]
+        clause: CURRENT_DATE - …
+        text: Selisih dua nilai date menghasilkan integer, jadi tidak perlu fungsi khusus. Untuk selisih dua timestamp, pakai AGE yang menghasilkan interval.
+      - lines: [5, 6]
+        clause: FROM orders o ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+  - dialects: [mysql]
+    note: DATEDIFF di MySQL menghitung selisih hari kalender dan mengabaikan jam secara otomatis.
+    code: |
+      SELECT
+        o.id,
+        o.ordered_at,
+        DATEDIFF(CURDATE(), DATE(o.ordered_at)) AS umur_hari
+      FROM orders o
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, o.ordered_at
+        text: Tampilkan waktu aslinya agar hasil perhitungannya mudah diperiksa.
+      - lines: [4, 4]
+        clause: DATEDIFF(CURDATE(), DATE(o.ordered_at))
+        text: Urutan argumennya adalah tanggal akhir dikurangi tanggal awal, jadi DATEDIFF(akhir, awal). Terbalik menulisnya menghasilkan angka negatif.
+      - lines: [4, 4]
+        clause: DATE(o.ordered_at)
+        text: Sebenarnya DATEDIFF sudah mengabaikan jam, tetapi menulis DATE secara eksplisit membuat maksudnya jelas terbaca.
+      - lines: [5, 6]
+        clause: FROM orders o ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+  - dialects: [sqlite]
+    note: SQLite tidak punya fungsi selisih tanggal, jadi keduanya diubah ke angka hari Julian lalu dikurangkan.
+    code: |
+      SELECT
+        o.id,
+        o.ordered_at,
+        CAST(julianday(date('now')) - julianday(date(o.ordered_at)) AS INTEGER) AS umur_hari
+      FROM orders o
+      ORDER BY o.id;
+    explanation:
+      - lines: [1, 3]
+        clause: SELECT o.id, o.ordered_at
+        text: Tampilkan waktu aslinya agar hasil perhitungannya mudah diperiksa.
+      - lines: [4, 4]
+        clause: julianday(…)
+        text: Mengubah tanggal menjadi bilangan pecahan berisi jumlah hari sejak titik acuan. Setelah jadi angka, selisihnya tinggal dikurangkan biasa.
+      - lines: [4, 4]
+        clause: date(…) di kedua sisi
+        text: Membungkus keduanya dengan date membuat bagian jam dibuang, sehingga hasilnya bilangan bulat. Tanpa itu, selisihnya berupa pecahan yang bergantung jam saat query dijalankan.
+      - lines: [4, 4]
+        clause: CAST(… AS INTEGER)
+        text: Rapikan hasilnya menjadi bilangan bulat agar seragam dengan dialek lain.
+      - lines: [5, 6]
+        clause: FROM orders o ORDER BY o.id
+        text: Urutkan berdasarkan nomor pesanan.
+sample:
+  description: Tanggal di data contoh relatif terhadap hari kamu menjalankan seed, jadi H-10 berarti 10 hari sebelumnya. Hasilnya pas bilangan bulat karena jam sudah dibuang di kedua sisi.
+  input:
+    - caption: orders
+      columns: [id, status, ordered_at]
+      rows:
+        - [1, paid, 'H-10 09:15:00']
+        - [2, paid, 'H-5 14:02:00']
+        - [3, pending, 'H-1 19:40:00']
+  output:
+    caption: Hasil
+    columns: [id, ordered_at, umur_hari]
+    rows:
+      - [1, 'H-10 09:15:00', 10]
+      - [2, 'H-5 14:02:00', 5]
+      - [3, 'H-1 19:40:00', 1]
+notes:
+  - type: warning
+    title: Jam membuat hasilnya tidak bulat
+    text: Membandingkan timestamp secara langsung menghasilkan pecahan, sehingga pesanan kemarin pukul 23.00 bisa terhitung berumur 0 hari, bukan 1. Buang bagian jam di kedua sisi bila yang dimaksud adalah selisih hari kalender.
+  - type: warning
+    title: Hindari membungkus kolom dengan fungsi di WHERE
+    text: Perhitungan seperti ini aman di SELECT, tetapi memakainya di WHERE membuat index pada kolom tanggal tidak terpakai. Untuk menyaring, bandingkan kolomnya langsung dengan batas yang sudah dihitung, seperti pada contoh filter rentang tanggal.
+  - type: info
+    title: Satuan selain hari
+    text: MySQL punya TIMESTAMPDIFF(unit, awal, akhir) untuk menit, jam, bulan, atau tahun. PostgreSQL memakai EXTRACT atas hasil AGE, sedangkan SQLite mengalikan selisih julianday, misalnya dikali 24 untuk jam.
+  - type: tip
+    text: Menghitung umur dalam bulan atau tahun lebih rumit karena panjang bulan berbeda-beda. Pakai AGE di PostgreSQL atau TIMESTAMPDIFF di MySQL, jangan membagi jumlah hari dengan 30.

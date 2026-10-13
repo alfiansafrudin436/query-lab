@@ -1,0 +1,57 @@
+title: Hitung nilai unik dengan COUNT(DISTINCT …)
+summary: Bedakan jumlah baris, jumlah pesanan, dan jumlah produk berbeda dalam satu kali baca tabel.
+whenToUse: Saat angka yang dicari adalah "berapa banyak yang berbeda", misalnya jumlah customer aktif atau jumlah produk yang pernah terjual.
+difficulty: beginner
+tags: [count distinct, unik, cardinality, agregasi]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [aggregate-functions, distinct, group-having]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT
+        COUNT(*) AS jumlah_item,
+        COUNT(DISTINCT oi.order_id) AS jumlah_pesanan,
+        COUNT(DISTINCT oi.product_id) AS jumlah_produk
+      FROM order_items oi;
+    explanation:
+      - lines: [2, 2]
+        clause: COUNT(*) AS jumlah_item
+        text: Menghitung baris, bukan nilai. Satu pesanan berisi dua produk terhitung dua kali di sini.
+      - lines: [3, 3]
+        clause: COUNT(DISTINCT oi.order_id)
+        text: Menghitung banyaknya nilai berbeda. Walau pesanan 1 punya dua baris item, ia hanya dihitung satu kali.
+      - lines: [4, 4]
+        clause: COUNT(DISTINCT oi.product_id)
+        text: Pola yang sama untuk produk. Menampilkan ketiganya berdampingan membuat bedanya langsung terlihat.
+      - lines: [5, 5]
+        clause: FROM order_items oi
+        text: Tanpa GROUP BY, seluruh tabel dianggap satu kelompok sehingga hasilnya satu baris.
+sample:
+  description: Empat baris item berasal dari tiga pesanan dan tiga produk berbeda. Pesanan 1 punya dua item, sehingga jumlah item lebih banyak daripada jumlah pesanan.
+  input:
+    - caption: order_items
+      columns: [id, order_id, product_id, quantity]
+      rows:
+        - [1, 1, 101, 2]
+        - [2, 1, 102, 1]
+        - [3, 2, 103, 3]
+        - [4, 3, 102, 2]
+  output:
+    caption: Hasil
+    columns: [jumlah_item, jumlah_pesanan, jumlah_produk]
+    rows:
+      - [4, 3, 3]
+notes:
+  - type: warning
+    title: Kesalahan paling sering setelah JOIN
+    text: Begitu tabel di-JOIN ke tabel anak, satu induk menghasilkan banyak baris sehingga COUNT(*) ikut berlipat. Untuk menghitung pesanan pada hasil gabungan, yang benar adalah COUNT(DISTINCT o.id), bukan COUNT(*).
+  - type: warning
+    title: NULL tidak pernah dihitung
+    text: COUNT(kolom) dan COUNT(DISTINCT kolom) mengabaikan baris yang kolomnya NULL, sedangkan COUNT(*) menghitung semua baris apa pun isinya. Perbedaan ini sering jadi sumber selisih angka di laporan.
+  - type: info
+    title: Harganya tidak murah
+    text: COUNT(DISTINCT …) perlu mengingat seluruh nilai berbeda, jadi jauh lebih berat daripada COUNT(*) pada tabel besar. PostgreSQL menyediakan ekstensi hyperloglog dan MySQL punya statistik perkiraan, bila angka pastinya tidak wajib.
+  - type: tip
+    text: MySQL mengizinkan COUNT(DISTINCT a, b) untuk menghitung pasangan nilai berbeda. PostgreSQL dan SQLite tidak, jadi padanannya COUNT(DISTINCT (a, b)) di PostgreSQL atau hitung lewat subquery berisi SELECT DISTINCT a, b.

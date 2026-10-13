@@ -1,0 +1,63 @@
+title: Hapus data yang punya relasi
+summary: Hapus item milik pesanan pending lebih dulu, karena foreign key melarang induknya dihapus duluan.
+whenToUse: Saat menghapus data yang punya tabel anak, misalnya membatalkan pesanan beserta seluruh itemnya.
+difficulty: intermediate
+tags: [delete, foreign key, relasi, hapus data, cascade]
+popularity: 8
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [delete-duplicates, subquery-in-exists, insert-basic]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      DELETE FROM order_items
+      WHERE order_id IN (
+        SELECT o.id
+        FROM orders o
+        WHERE o.status = 'pending'
+      );
+    explanation:
+      - lines: [1, 1]
+        clause: DELETE FROM order_items
+        text: Tabel anak dihapus lebih dulu. Membalik urutannya akan ditolak foreign key, karena item yang tersisa akan menunjuk pesanan yang sudah tiada.
+      - lines: [2, 2]
+        clause: WHERE order_id IN (…)
+        text: Baris yang dihapus ditentukan oleh daftar yang dihasilkan subquery, bukan ditulis satu per satu.
+      - lines: [3, 5]
+        clause: SELECT o.id FROM orders o WHERE …
+        text: Subquery memilih pesanan mana yang hendak dibatalkan. Jalankan bagian ini sendiri lebih dulu untuk melihat apa saja yang akan terkena.
+      - lines: [6, 6]
+        clause: Tanda kurung penutup
+        text: Setelah item terhapus, induknya baru boleh dihapus dengan DELETE kedua memakai syarat yang sama.
+sample:
+  description: Hanya pesanan 3 yang berstatus pending, dan ia punya satu item. Tiga item milik pesanan lain tidak tersentuh.
+  input:
+    - caption: Sebelum · order_items
+      columns: [id, order_id, product_id, quantity]
+      rows:
+        - [1, 1, 101, 2]
+        - [2, 1, 102, 1]
+        - [3, 2, 103, 3]
+        - [4, 3, 102, 2]
+  output:
+    caption: Sesudah · order_items
+    columns: [id, order_id, product_id, quantity]
+    rows:
+      - [1, 1, 101, 2]
+      - [2, 1, 102, 1]
+      - [3, 2, 103, 3]
+notes:
+  - type: warning
+    title: Periksa dengan SELECT sebelum menjalankan
+    text: Ganti kata DELETE FROM menjadi SELECT bintang FROM memakai WHERE yang sama persis, lalu lihat baris yang muncul. Itulah baris yang akan hilang. DELETE tidak bisa dibatalkan kecuali dijalankan di dalam transaksi yang belum di-COMMIT.
+  - type: warning
+    title: DELETE tanpa WHERE mengosongkan tabel
+    text: Satu baris WHERE yang terlewat membuat seluruh isi tabel terhapus. Biasakan menulis WHERE lebih dulu, baru kata DELETE-nya.
+  - type: tip
+    title: ON DELETE CASCADE menghapus anak secara otomatis
+    text: Bila foreign key dideklarasikan dengan ON DELETE CASCADE, menghapus pesanan otomatis menghapus itemnya, sehingga dua perintah di atas cukup jadi satu. Kemudahan ini juga berbahaya, karena penghapusan bisa merembet jauh lebih luas daripada yang diduga.
+  - type: info
+    title: Jalankan keduanya dalam satu transaksi
+    text: Menghapus item dan pesanannya adalah satu pekerjaan utuh. Bungkus dengan BEGIN dan COMMIT agar tidak berhenti di tengah dan meninggalkan pesanan tanpa item.
+  - type: tip
+    text: Di banyak sistem, data transaksi sebaiknya tidak benar-benar dihapus. Pertimbangkan soft delete, yaitu menandai baris dengan kolom seperti deleted_at, agar riwayatnya tetap bisa ditelusuri.

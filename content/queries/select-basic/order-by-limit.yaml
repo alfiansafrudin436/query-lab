@@ -1,0 +1,56 @@
+title: Urutkan hasil dan batasi jumlahnya
+summary: Ambil dua produk termahal dengan ORDER BY lalu LIMIT, termasuk cara mengunci urutan agar stabil.
+whenToUse: Saat butuh beberapa baris teratas saja, misalnya 5 produk termahal atau 10 pesanan terbaru di dashboard.
+difficulty: beginner
+tags: [order by, limit, desc, asc, urutkan, top n]
+popularity: 10
+createdAt: '2026-10-13'
+updatedAt: '2026-10-13'
+related: [pagination, select-alias, top-n-per-group]
+variants:
+  - dialects: [postgresql, mysql, sqlite]
+    code: |
+      SELECT p.name, p.price, p.stock
+      FROM products p
+      ORDER BY p.price DESC, p.name
+      LIMIT 2;
+    explanation:
+      - lines: [1, 2]
+        clause: SELECT p.name, p.price, p.stock FROM products p
+        text: Kolom yang ditampilkan. Kolom yang dipakai mengurutkan tidak wajib ikut ditampilkan, tapi menampilkannya memudahkan memeriksa hasil.
+      - lines: [3, 3]
+        clause: ORDER BY p.price DESC
+        text: DESC mengurutkan dari besar ke kecil. Tanpa kata itu, urutannya menaik (ASC), yang memang jadi bawaan sehingga jarang ditulis.
+      - lines: [3, 3]
+        clause: ', p.name'
+        text: Kolom kedua adalah pemecah seri. Bila dua produk harganya sama, urutannya ditentukan nama, bukan dipilih sembarang oleh database.
+      - lines: [4, 4]
+        clause: LIMIT 2
+        text: Batasi jumlah baris yang dikembalikan. LIMIT selalu dikerjakan paling akhir, setelah pengurutan selesai, jadi yang diambil memang dua teratas.
+sample:
+  description: Dari tiga produk, hanya dua termahal yang terambil. Teh Melati terpotong oleh LIMIT.
+  input:
+    - caption: products
+      columns: [id, name, price, stock]
+      rows:
+        - [101, Kopi Arabika 250g, 79000, 12]
+        - [102, Teh Melati 100g, 25000, 30]
+        - [103, Kopi Robusta 250g, 62000, 20]
+  output:
+    caption: Hasil
+    columns: [name, price, stock]
+    rows:
+      - [Kopi Arabika 250g, 79000, 12]
+      - [Kopi Robusta 250g, 62000, 20]
+notes:
+  - type: warning
+    title: LIMIT tanpa ORDER BY tidak bisa diandalkan
+    text: Tanpa ORDER BY, database bebas mengembalikan baris mana pun, dan hasilnya bisa berbeda tiap kali query dijalankan. "10 data teratas" hanya bermakna bila urutannya ditentukan lebih dulu.
+  - type: warning
+    title: Selalu sediakan pemecah seri
+    text: Bila kolom pengurut punya nilai kembar, baris yang seri bisa bertukar posisi antar percobaan. Tambahkan kolom unik seperti id di akhir ORDER BY agar urutannya pasti. Ini penting sekali untuk pagination, karena urutan yang goyah membuat satu baris muncul dua kali di halaman berbeda.
+  - type: info
+    title: Posisi nilai NULL
+    text: PostgreSQL menaruh NULL di akhir saat ASC, sedangkan MySQL dan SQLite menaruhnya di awal. PostgreSQL menyediakan NULLS FIRST dan NULLS LAST untuk mengaturnya; di dua lainnya, pakai akal-akalan seperti ORDER BY kolom IS NULL, kolom.
+  - type: tip
+    text: Mengurutkan dengan ekspresi juga bisa, misalnya ORDER BY p.price * p.stock DESC untuk nilai persediaan. Perlu diingat, kolom yang dibungkus ekspresi membuat index pada kolom itu tidak terpakai.
